@@ -11,32 +11,43 @@ FLOAT_VAR_COMMANDS = [0x14, 0x15, 0x3f, 0x40, 0x41, 0x42, 0x43, 0x44, 0x45]
 INT_VAR_COMMANDS = [0x1c, 0x1d, 0x1e, 0x1f, 0x20, 0x21, 0x22, 0x23, 0x24]
 VAR_COMMANDS = INT_VAR_COMMANDS + FLOAT_VAR_COMMANDS
 BINARY_OPERATIONS = {
-                        0xe  : "+",
-                        0xf  : "-",
-                        0x10 : "*",
-                        0x11 : "/",
-                        0x12 : "%",
-                        0x16 : "&",
-                        0x17 : "|",
-                        0x19 : "^",
-                        0x1a : "<<",
-                        0x1b : ">>",
-                        0x25 : "==",
-                        0x26 : "!=",
-                        0x28 : "<",
-                        0x29 : ">",
-                        0x2a : ">=",
-                        0x3a : "+",
-                        0x3b : "-",
-                        0x3c : "*",
-                        0x3d : "/",
-                        0x46 : "==",
-                        0x47 : "!=",
-                        0x48 : "<",
-                        0x49 : "<=",
-                        0x4a : ">",
-                        0x4b : ">="
-                    }
+    0xe  : "+",
+    0xf  : "-",
+    0x10 : "*",
+    0x11 : "/",
+    0x12 : "%",
+    0x16 : "&",
+    0x17 : "|",
+    0x19 : "^",
+    0x1a : "<<",
+    0x1b : ">>",
+    0x25 : "==",
+    0x26 : "!=",
+    0x28 : "<",
+    0x29 : ">",
+    0x2a : ">=",
+    0x3a : "+",
+    0x3b : "-",
+    0x3c : "*",
+    0x3d : "/",
+    0x46 : "==",
+    0x47 : "!=",
+    0x48 : "<",
+    0x49 : "<=",
+    0x4a : ">",
+    0x4b : ">="
+}
+
+UNARY_OPERATIONS = {
+    0x13 : "-",
+    0x14 : "++",
+    0x15 : "--",
+    0x18 : "~",
+    0x2b : "!",
+    0x3e : "-",
+    0x3f : "++",
+    0x40 : "--"
+}
 
 def getLocalVarTypes(func, varCount):
     varInt = {}
@@ -82,13 +93,40 @@ def getArgs(argc):
     return other, args
 
 def decompileCmd(cmd):
-    global currentFunc, index, localVars
+    global currentFunc, index, localVars, globalVars
 
     # TODO: Properly recognize labels as control flow
     if type(cmd) == Label:
         return None
     if type(cmd) == Command:
-        pass # Recursively decopmile here
+        c = cmd.command
+        if c in [0x0, 0x1, 0x2, 0x3]:
+            return None
+        elif c in [0x4, 0x5]:
+            pass
+        elif c in [0x6, 0x8]:
+            other, args = getArgs(1)
+            return other + [c_ast.Return(args[0])]
+        elif c in [0x7, 0x9]:
+            return c_ast.Return()
+        elif c in [0xA, 0xD]:
+            return c_ast.Constant(cmd.parameters[0])
+        elif c == 0xB:
+            if cmd.parameters[0] == 0:
+                return localVars[cmd.parameters[1]]
+            else:
+                return globalVars[cmd.parameters[1]]
+        elif c in [0xe, 0xf, 0x10, 0x11, 0x12, 0x16, 0x17, 0x19, 0x1a, 0x1b, 0x25, 0x26, 0x28, 0x29, 0x2a, 0x3a, 0x3b, 0x3c, 0x3d, 0x46, 0x47, 0x48, 0x49, 0x4a, 0x4b]:
+            other, args = getArgs(2)
+            return other + [c_ast.BinaryOp(BINARY_OPERATIONS[c], args[0], args[1])]
+        elif c in [0x13, 0x18, 0x2b, 0x3e]:
+            other, args = getArgs(1)
+            return other + [c_ast.UnaryOp(UNARY_OPERATIONS[c], args[0])]
+        elif c in [0x14, 0x15, 0x3f, 0x40]:
+            if cmd.parameters[0] == 0:
+                return c_ast.UnaryOp(UNARY_OPERATIONS[c], localVars[cmd.parameters[1]])
+            else:
+                return c_ast.UnaryOp(UNARY_OPERATIONS[c], globalVars[cmd.parameters[1]])
 
 def decompileFunc(func, s):
     global currentFunc, index
