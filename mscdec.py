@@ -1,6 +1,7 @@
 from msc import *
 import ast2str as c_ast
-from disasm import disasm
+from disasm import disasm as mscsb_disasm
+from disasm import Label
 
 class DecompilerError(Exception):
     def __init__(self,*args,**kwargs):
@@ -9,6 +10,33 @@ class DecompilerError(Exception):
 FLOAT_VAR_COMMANDS = [0x14, 0x15, 0x3f, 0x40, 0x41, 0x42, 0x43, 0x44, 0x45]
 INT_VAR_COMMANDS = [0x1c, 0x1d, 0x1e, 0x1f, 0x20, 0x21, 0x22, 0x23, 0x24]
 VAR_COMMANDS = INT_VAR_COMMANDS + FLOAT_VAR_COMMANDS
+BINARY_OPERATIONS = {
+                        0xe  : "+",
+                        0xf  : "-",
+                        0x10 : "*",
+                        0x11 : "/",
+                        0x12 : "%",
+                        0x16 : "&",
+                        0x17 : "|",
+                        0x19 : "^",
+                        0x1a : "<<",
+                        0x1b : ">>",
+                        0x25 : "==",
+                        0x26 : "!=",
+                        0x28 : "<",
+                        0x29 : ">",
+                        0x2a : ">=",
+                        0x3a : "+",
+                        0x3b : "-",
+                        0x3c : "*",
+                        0x3d : "/",
+                        0x46 : "==",
+                        0x47 : "!=",
+                        0x48 : "<",
+                        0x49 : "<=",
+                        0x4a : ">",
+                        0x4b : ">="
+                    }
 
 def getLocalVarTypes(func, varCount):
     varInt = {}
@@ -39,7 +67,47 @@ def getLocalVarTypes(func, varCount):
 
     return localVarTypes
 
+def getArgs(argc):
+    global currentFunc, index
+
+    other = []
+    args = []
+    while len(args) < argc:
+        index -= 1 
+        d = decompileCmd(currentFunc[index])
+        if currentFunc[index].pushBit:
+            args.append(d)
+        else:
+            other.append(d)
+    return other, args
+
+def decompileCmd(cmd):
+    global currentFunc, index, localVars
+
+    # TODO: Properly recognize labels as control flow
+    if type(cmd) == Label:
+        return None
+    if type(cmd) == Command:
+        pass # Recursively decopmile here
+
+def decompileFunc(func, s):
+    global currentFunc, index
+    currentFunc = func
+    index = len(func) - 1
+    insertPos = len(s)
+    while index >= 0:
+        decompiledCmd = decompileCmd(func[index])
+        if decompileCmd:
+            if type(decompiledCmd) == list:
+                for i in decompileCmd[::-1]:
+                    s.insert(insertPos, i)
+            else:
+                s.insert(insertPos, decompiledCmd)
+        index -= 1
+
 def decompile(func):
+    global localVars
+
     f = c_ast.FuncDef("void", func.name, c_ast.DeclList(), c_ast.Statements())
     # If non-empty function that doesn't start with 0x2
     if len(func.cmds) != 0 and func.cmds[0].command != 0x2:
@@ -58,6 +126,7 @@ def decompile(func):
         localVars.append(c_ast.ID("var{}".format(i + argc)))
 
     s = f.statements
+    decompileFunc(func, s)
 
     # Insert local var declarations at the beginning of the function, in order
     for i, decl in enumerate(localVarDecls):
@@ -111,7 +180,7 @@ def printC(globalVars, funcs, file=None):
 def main():
     global globalVars
 
-    mscFile = disasm("captain.mscsb")
+    mscFile = mscsb_disasm("captain.mscsb")
     
     globalVarDecls = getGlobalVars(mscFile)
 
