@@ -23,6 +23,13 @@ class Cast:
     def __str__(self):
         return "({}){}".format(self.type, self.statement)
 
+class Comment:
+    def __init__(self, text):
+        self.text = text
+
+    def __str__(self):
+        return '/*{}*/'.format(self.text)
+
 class Constant:
     def __init__(self, value):
         self.value = value
