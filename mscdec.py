@@ -154,6 +154,9 @@ def decompileCmd(cmd):
         elif c == 0x2c: # printf
             other, args = getArgs(cmd.parameters[0])
             return other + [c_ast.FuncCall("printf", c_ast.DeclList(args))]
+        elif c == 0x2d: # syscall
+            other, args = getArgs(cmd.parameters[0])
+            return other + [c_ast.FuncCall("sys_%X" % cmd.parameters[1], c_ast.DeclList(args))]
 
 def decompileFunc(func, s):
     global currentFunc, index
