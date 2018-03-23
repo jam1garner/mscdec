@@ -1,3 +1,12 @@
+class Assignment:
+    def __init__(self, op, lvalue, rvalue):
+        self.op = op
+        self.lvalue = lvalue
+        self.rvalue = rvalue
+    
+    def __str__(self):
+        return '{} {} {}'.format(str(self.lvalue), self.op, str(self.rvalue))
+
 class BinaryOp:
     def __init__(self, op=None, arg1=None, arg2=None):
         self.op = op
