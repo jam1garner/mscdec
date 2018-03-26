@@ -2,6 +2,7 @@ from msc import *
 import ast2str as c_ast
 from disasm import disasm as mscsb_disasm
 from disasm import Label
+from disasm import ScriptRef
 
 class DecompilerError(Exception):
     def __init__(self,*args,**kwargs):
@@ -107,7 +108,7 @@ def getArgs(argc):
         if type(d) == list:
             other = d[:-1] + other
             d = d[-1]
-        if (type(currentFunc[index]) == Command or type(currentFunc[index]) == FunctionCallGroup) and currentFunc[index].pushBit:
+        if ((type(currentFunc[index]) in [Command, FunctionCallGroup]) and currentFunc[index].pushBit) or type(currentFunc[index]) == Cast:
             args.append(d)
         else:
             other.append(d)
@@ -138,6 +139,8 @@ def decompileCmd(cmd):
         elif c in [0x7, 0x9]: # Return nothing
             return c_ast.Return()
         elif c in [0xA, 0xD]: # Push constant
+            if type(cmd.parameters[0]) == ScriptRef:
+                return c_ast.ID(str(cmd.parameters[0]))
             return c_ast.Constant(cmd.parameters[0])
         elif c == 0xB: # Push variable
             if cmd.parameters[0] == 0:
@@ -178,7 +181,7 @@ def decompileCmd(cmd):
             if type(args[0]) == c_ast.Constant and type(args[0].value) == str:
                 args[0] = c_ast.ID(args[0].value)
             return other + [c_ast.FuncCall("callFunc3", c_ast.DeclList(args[0:1] + args[:0:-1]))]
-    if type(cmd) == FunctionCallGroup:
+    elif type(cmd) == FunctionCallGroup:
         oldFunc = currentFunc
         oldIndex = index
 
@@ -197,6 +200,13 @@ def decompileCmd(cmd):
         index = oldIndex
 
         return other + [c_ast.FuncCall(args[0], c_ast.DeclList(args[:0:-1]))]
+    elif type(cmd) == Cast:
+        other, args = getArgs(1)
+        return other + [c_ast.Cast(cmd.type, args[0])]
+
+class Cast:
+    def __init__(self, type):
+        self.type = type
 
 # Put function calls into a seperate groups
 def pullOutGroups(commands):
@@ -217,6 +227,17 @@ def pullOutGroups(commands):
             funCallGroup += temp
             newCommands.append(funCallGroup)
             newCommands.append(tryEnd)
+        elif type(cmd) == Command and cmd.command in [0x38, 0x39]:
+            index = len(newCommands) - 1
+            numPushedBack = 0
+            while index > 0:
+                if type(newCommands[index]) in [Command, FunctionCallGroup] and newCommands[index].pushBit and numPushedBack == cmd.parameters[0]:
+                    newCommands.insert(index + 1, Cast("float" if cmd.command == 0x38 else "int"))
+                if type(newCommands[index]) == Command:
+                    numPushedBack -= COMMAND_STACKPOPS[newCommands[index].command](newCommands[index].parameters) - int(newCommands[index].pushBit)
+                elif type(newCommands[index]) == FunctionCallGroup:
+                    numPushedBack += int(newCommands[index].pushBit)
+                index -= 1
         else:
             newCommands.append(cmd)
         i += 1
@@ -226,6 +247,8 @@ def decompileFunc(func, s):
     global currentFunc, index
     currentFunc = func
     currentFunc.cmds = pullOutGroups(currentFunc.cmds)
+    if func.name == "func_196":
+        print()
     index = len(currentFunc) - 1
     insertPos = len(s)
     while index >= 0:

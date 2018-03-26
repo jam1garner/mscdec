@@ -6,6 +6,8 @@
 from msc import *
 import sys, os, time, os.path, timeit
 from argparse import ArgumentParser
+from struct import unpack, pack
+from math import isnan
 
 scriptNames = {}
 scriptOffsets = []
@@ -25,6 +27,9 @@ class Label:
         else:
             return "Label "+hex(id(self))+":"
 
+class ScriptRef(str):
+    pass
+
 def updateScriptReference(popped, index, scriptName):
     global scriptCalledVars, mscFile, acmdNames, charAcmdNames
     try:
@@ -33,7 +38,7 @@ def updateScriptReference(popped, index, scriptName):
             #if the index pushed is a valid script offset
             if popped[index].parameters[0] in scriptOffsets:
                 newScriptName = scriptNames[popped[index].parameters[0]]
-                popped[index].parameters[0] = newScriptName
+                popped[index].parameters[0] = ScriptRef(newScriptName)
 
         #if the Xth command popped off the stack is a variable
         if popped[index].command == 0xB:
@@ -152,6 +157,10 @@ def guessIsFloat(bits):
     exp = ((bits & 0x7f800000) >> 23) - 127
     mant = bits & 0x007fffff
 
+    testFloat = unpack("f", pack("I", bits))[0]
+    if testFloat < 0.000001 or isnan(testFloat):
+        return False
+
     # +- 0.0
     if exp == -127 and mant == 0:
         return True
@@ -168,7 +177,10 @@ def guessIsFloat(bits):
 
 def pickTypes(script):
     for cmd in script:
-        if cmd.command in []
+        if cmd.command in [0xa, 0xd]:
+            if type(cmd.parameters[0]) == int:
+                if guessIsFloat(cmd.parameters[0]):
+                    cmd.parameters[0] = unpack("f", pack("I", cmd.parameters[0]))[0]
 
 def disasm(fname):
     global clearedPaths,scriptCalledVars,mscFile,charAcmdNames

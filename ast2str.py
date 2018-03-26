@@ -30,7 +30,7 @@ class Cast:
         self.statement = statement
 
     def __str__(self):
-        return "({}){}".format(str(self.type), str(self.statement))
+        return "(({}){})".format(str(self.type), str(self.statement))
 
 class Comment:
     def __init__(self, text):
