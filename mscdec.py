@@ -121,7 +121,7 @@ class FunctionCallGroup(list):
         self.pushBit = pushBit
 
 def decompileCmd(cmd):
-    global currentFunc, index, localVars, globalVars
+    global currentFunc, index, localVars, globalVars, funcNames
 
     funcHolder = currentFunc
 
@@ -194,8 +194,11 @@ def decompileCmd(cmd):
         cmd = currentFunc[index]
         other, args = getArgs(cmd.parameters[0] + 1)
 
+        if type(args[0]) == c_ast.ID and not args[0].name in funcNames:
+            args[0] = c_ast.UnaryOp("*", args[0])
+
         if type(args[0]) == c_ast.Constant and type(args[0].value) == str:
-                args[0] = c_ast.ID(args[0].value)
+            args[0] = c_ast.ID(args[0].value)
 
         currentFunc = oldFunc
         index = oldIndex
@@ -386,7 +389,7 @@ def getFuncTypes(mscFile):
     return funcTypes
 
 def main():
-    global globalVars, globalVarDecls, funcTypes
+    global globalVars, globalVarDecls, funcTypes, funcNames
 
     mscFile = mscsb_disasm("captain.mscsb")
     
@@ -400,6 +403,10 @@ def main():
     # Rename entrypoint function to "main"
     mscFile.getScriptAtLocation(mscFile.entryPoint).name = 'main'
     
+    funcNames = []
+    for script in mscFile:
+        funcNames.append(script.name)
+
     for i, script in enumerate(mscFile):
         funcs.append(decompile(script, i))
 

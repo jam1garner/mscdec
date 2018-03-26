@@ -178,6 +178,8 @@ class UnaryOp:
     def __str__(self):
         if self.op in ["++", "--"]:
             return "{}{}".format(str(self.id), str(self.op))
+        elif self.op == "*":
+            return "({}{})".format(str(self.op), str(self.id))
         else:
             return "{}{}".format(str(self.op), str(self.id))
 
