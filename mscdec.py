@@ -3,6 +3,7 @@ import ast2str as c_ast
 from disasm import disasm as mscsb_disasm
 from disasm import Label
 from disasm import ScriptRef
+import operator
 
 class DecompilerError(Exception):
     def __init__(self,*args,**kwargs):
@@ -248,8 +249,6 @@ def decompileFunc(func, s):
     global currentFunc, index
     currentFunc = func
     currentFunc.cmds = pullOutGroups(currentFunc.cmds)
-    if func.name == "func_196":
-        print()
     index = len(currentFunc) - 1
     insertPos = len(s)
     while index >= 0:
@@ -264,10 +263,10 @@ def decompileFunc(func, s):
                     s.insert(insertPos, decompiledCmd)
         index -= 1
 
-def decompile(func):
-    global localVars
+def decompile(func, funcNum):
+    global localVars, funcTypes
 
-    f = c_ast.FuncDef("void", func.name, c_ast.DeclList(), c_ast.Statements())
+    f = c_ast.FuncDef(funcTypes[funcNum], func.name, c_ast.DeclList(), c_ast.Statements())
     # If non-empty function that doesn't start with 0x2
     if len(func.cmds) != 0 and func.cmds[0].command != 0x2:
         raise DecompilerError("Script {} doesn't start with a begin".format(func.name))
@@ -336,8 +335,58 @@ def printC(globalVars, funcs, file=None):
         print(func, file=file)
         print(file=file)
 
+def getFuncTypes(mscFile):
+    global globalVarDecls
+    funcTypes = [None for _ in range(len(mscFile))]
+    numPasses = 0
+    while None in funcTypes and numPasses < 4:
+        numPasses += 1
+        for i, func in enumerate(mscFile):
+            if funcTypes[i] != None:
+                continue
+            hasReturnValue = False
+            returnIndices = []
+            for j, cmd in enumerate(func):
+                if type(cmd) == Command and cmd.command in [0x6, 0x8]:
+                    returnIndices.append(j)
+                    hasReturnValue = True
+                    
+            if not hasReturnValue:
+                funcTypes[i] = "void"
+                continue
+
+            typeConfirmedLevel = {"string" : 0, "float" : 0, "int" : 0, "bool" : 0}
+            def setTypeLevel(type, level):
+                if typeConfirmedLevel[type] < level:
+                    typeConfirmedLevel[type] = level
+            for returnIndex in returnIndices:
+                if type(func[returnIndex - 1]) == Command:
+                    if not func[returnIndex - 1].pushBit:
+                        continue
+                    c = func[returnIndex - 1].command
+                    if c in [0xA, 0xD]:
+                        t = {str : "string", int : "int", float : "float"}[type(func[returnIndex - 1].parameters[0])]
+                        setTypeLevel(t, 1)
+                    elif c == 0xb and func[returnIndex - 1].parameters[0] == 1:
+                        var = globalVarDecls[func[returnIndex - 1].parameters[1]]
+                        setTypeLevel(var.type, 1)
+                    elif c in range(0xe, 0x25):
+                        setTypeLevel("int", 2)
+                    elif c in range(0x3a, 0x42):
+                        setTypeLevel("float", 2)
+                    elif c in range(0x46, 0x4c) or c in range(0x25, 0x2c):
+                        setTypeLevel("bool", 2)
+            if not 1 in typeConfirmedLevel.values() and not 2 in typeConfirmedLevel.values():
+                continue
+            maxType = max(typeConfirmedLevel.items(), key=operator.itemgetter(1))[0]
+            funcTypes[i] = maxType
+    for i in range(len(funcTypes)):
+        if funcTypes[i] == None:
+            funcTypes[i] = "int"
+    return funcTypes
+
 def main():
-    global globalVars
+    global globalVars, globalVarDecls, funcTypes
 
     mscFile = mscsb_disasm("captain.mscsb")
     
@@ -346,11 +395,13 @@ def main():
     globalVars = [c_ast.ID(decl.name) for decl in globalVarDecls]
     funcs = []
     
+    funcTypes = getFuncTypes(mscFile)
+
     # Rename entrypoint function to "main"
     mscFile.getScriptAtLocation(mscFile.entryPoint).name = 'main'
     
-    for script in mscFile:
-        funcs.append(decompile(script))
+    for i, script in enumerate(mscFile):
+        funcs.append(decompile(script, i))
 
     with open("testDecompileFalcon.c", "w") as f:
         printC(globalVarDecls, funcs, f)
