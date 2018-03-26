@@ -30,7 +30,7 @@ class Cast:
         self.statement = statement
 
     def __str__(self):
-        return "({}){}".format(self.type, self.statement)
+        return "({}){}".format(str(self.type), str(self.statement))
 
 class Comment:
     def __init__(self, text):
@@ -65,9 +65,9 @@ class Decl:
 
     def __str__(self):
         if self.initialValue == None:
-            return "{} {}".format(self.type, self.name)
+            return "{} {}".format(str(self.type), str(self.name))
         else:
-            return "{} {} = {}".format(self.type, self.name, str(self.initialValue))
+            return "{} {} = {}".format(str(self.type), str(self.name), str(self.initialValue))
 
 class DeclList(list):
     def __str__(self):
@@ -101,7 +101,7 @@ class FuncCall:
         self.args = args
 
     def __str__(self):
-        return "{}({})".format(self.function, self.args)
+        return "{}({})".format(str(self.function), str(self.args))
 
 class FuncDef:
     def __init__(self, type, name, args, statements):
@@ -111,7 +111,7 @@ class FuncDef:
         self.statements = statements
 
     def __str__(self):
-        return "{} {}({}){{\n{}\n}}".format(self.type, self.name, self.args, self.statements)
+        return "{} {}({}){{\n{}\n}}".format(str(self.type), str(self.name), str(self.args), str(self.statements))
 
 class Goto:
     def __init__(self, labelName):
@@ -134,7 +134,7 @@ class If:
         self.falseStatements = falseStatements
 
     def __str__(self):
-        returnStr = "if({}){\n{}\n}".format(self.condition, self.trueStatements)
+        returnStr = "if({}){\n{}\n}".format(str(self.condition), str(self.trueStatements))
 
         if self.falseStatements == None:
             pass
@@ -153,11 +153,13 @@ class Label:
         return "{}:".format(self.name)
 
 class Return:
-    def __init__(self, statement):
+    def __init__(self, statement=None):
         self.statement = statement
 
     def __str__(self):
-        return "return {}".format(statement)
+        if self.statement == None:
+            return "return"
+        return "return {}".format(str(self.statement))
 
 class TernaryOp:
     def __init__(self, condition, trueStatement, falseStatement):
@@ -166,7 +168,7 @@ class TernaryOp:
         self.falseStatement = falseStatement
 
     def __str__(self):
-        return "{} ? {} : {}".format(self.condition, self.trueStatement, self.falseStatement)
+        return "{} ? {} : {}".format(str(self.condition), str(self.trueStatement), str(self.falseStatement))
 
 class UnaryOp:
     def __init__(self, op, id):
@@ -175,9 +177,9 @@ class UnaryOp:
 
     def __str__(self):
         if self.op in ["++", "--"]:
-            return "{}{}".format(self.id, self.op)
+            return "{}{}".format(str(self.id), str(self.op))
         else:
-            return "{}{}".format(self.op, self.id)
+            return "{}{}".format(str(self.op), str(self.id))
 
 class While:
     def __init__(self, condition, statements):
@@ -185,7 +187,7 @@ class While:
         self.statements = statements
 
     def __str__(self):
-        return "while({}){{\n{}\n}}".format(self.condition, self.statements)
+        return "while({}){{\n{}\n}}".format(str(self.condition), str(self.statements))
 
 # Example:
 # void main(){

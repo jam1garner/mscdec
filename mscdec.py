@@ -9,7 +9,7 @@ class DecompilerError(Exception):
 
 FLOAT_VAR_COMMANDS = [0x14, 0x15, 0x3f, 0x40, 0x41, 0x42, 0x43, 0x44, 0x45]
 INT_VAR_COMMANDS = [0x1c, 0x1d, 0x1e, 0x1f, 0x20, 0x21, 0x22, 0x23, 0x24]
-VAR_COMMANDS = INT_VAR_COMMANDS + FLOAT_VAR_COMMANDS
+VAR_COMMANDS = INT_VAR_COMMANDS + FLOAT_VAR_COMMANDS + [0xb]
 BINARY_OPERATIONS = {
     0xe  : "+",
     0xf  : "-",
@@ -23,7 +23,8 @@ BINARY_OPERATIONS = {
     0x1b : ">>",
     0x25 : "==",
     0x26 : "!=",
-    0x28 : "<",
+    0x27 : "<",
+    0x28 : "<=",
     0x29 : ">",
     0x2a : ">=",
     0x3a : "+",
@@ -79,7 +80,7 @@ def getLocalVarTypes(func, varCount):
                     varInt[varNum] = 1
                 else:
                     varInt[varNum] += 1
-            else:
+            elif cmd.command in FLOAT_VAR_COMMANDS:
                 if not varNum in varFloat:
                     varFloat[varNum] = 1
                 else:
@@ -100,17 +101,27 @@ def getArgs(argc):
 
     other = []
     args = []
-    while len(args) < argc:
+    while len(args) < argc and index >= 0:
         index -= 1 
         d = decompileCmd(currentFunc[index])
-        if currentFunc[index].pushBit:
+        if type(d) == list:
+            other = d[:-1] + other
+            d = d[-1]
+        if (type(currentFunc[index]) == Command or type(currentFunc[index]) == FunctionCallGroup) and currentFunc[index].pushBit:
             args.append(d)
         else:
             other.append(d)
     return other, args
 
+class FunctionCallGroup(list):
+    def __init__(self, pushBit=False):
+        super().__init__(self)
+        self.pushBit = pushBit
+
 def decompileCmd(cmd):
     global currentFunc, index, localVars, globalVars
+
+    funcHolder = currentFunc
 
     # TODO: Properly recognize labels as control flow
     if type(cmd) == Label:
@@ -133,9 +144,9 @@ def decompileCmd(cmd):
                 return localVars[cmd.parameters[1]]
             else:
                 return globalVars[cmd.parameters[1]]
-        elif c in [0xe, 0xf, 0x10, 0x11, 0x12, 0x16, 0x17, 0x19, 0x1a, 0x1b, 0x25, 0x26, 0x28, 0x29, 0x2a, 0x3a, 0x3b, 0x3c, 0x3d, 0x46, 0x47, 0x48, 0x49, 0x4a, 0x4b]:
+        elif c in [0xe, 0xf, 0x10, 0x11, 0x12, 0x16, 0x17, 0x19, 0x1a, 0x1b, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2a, 0x3a, 0x3b, 0x3c, 0x3d, 0x46, 0x47, 0x48, 0x49, 0x4a, 0x4b]:
             other, args = getArgs(2)
-            return other + [c_ast.BinaryOp(BINARY_OPERATIONS[c], args[0], args[1])]
+            return other + [c_ast.BinaryOp(BINARY_OPERATIONS[c], args[1], args[0])]
         elif c in [0x13, 0x18, 0x2b, 0x3e]: # Negation, bit not, logic not, etc. (Unary Op not applied to variable)
             other, args = getArgs(1)
             return other + [c_ast.UnaryOp(UNARY_OPERATIONS[c], args[0])]
@@ -153,21 +164,75 @@ def decompileCmd(cmd):
             return other + [c_ast.Assignment(ASSIGNMENT_OPERATIONS[c], variable, args[0])]
         elif c == 0x2c: # printf
             other, args = getArgs(cmd.parameters[0])
-            return other + [c_ast.FuncCall("printf", c_ast.DeclList(args))]
+            return other + [c_ast.FuncCall("printf", c_ast.DeclList(args[::-1]))]
         elif c == 0x2d: # syscall
             other, args = getArgs(cmd.parameters[0])
-            return other + [c_ast.FuncCall("sys_%X" % cmd.parameters[1], c_ast.DeclList(args))]
+            return other + [c_ast.FuncCall("sys_%X" % cmd.parameters[1], c_ast.DeclList(args[::-1]))] 
+        elif c == 0x30: # set_main
+            other, args = getArgs(cmd.parameters[0] + 1)
+            if type(args[0]) == c_ast.Constant and type(args[0].value) == str:
+                args[0] = c_ast.ID(args[0].value)
+            return other + [c_ast.FuncCall("set_main", c_ast.DeclList(args[0:1] + args[:0:-1]))] #args[0:1] + args[:0:-1] is the first arg then the rest are in opposite order
+        elif c == 0x31: # callFunc3
+            other, args = getArgs(cmd.parameters[0] + 1)
+            if type(args[0]) == c_ast.Constant and type(args[0].value) == str:
+                args[0] = c_ast.ID(args[0].value)
+            return other + [c_ast.FuncCall("callFunc3", c_ast.DeclList(args[0:1] + args[:0:-1]))]
+    if type(cmd) == FunctionCallGroup:
+        oldFunc = currentFunc
+        oldIndex = index
+
+        currentFunc = cmd
+        index = len(currentFunc) - 2 # (ignore the label that will be at the end)
+        if currentFunc[index].command != 0x2f:
+            raise DecompilerError("Function improperly formatted")
+        
+        cmd = currentFunc[index]
+        other, args = getArgs(cmd.parameters[0] + 1)
+
+        if type(args[0]) == c_ast.Constant and type(args[0].value) == str:
+                args[0] = c_ast.ID(args[0].value)
+
+        currentFunc = oldFunc
+        index = oldIndex
+
+        return other + [c_ast.FuncCall(args[0], c_ast.DeclList(args[:0:-1]))]
+
+# Put function calls into a seperate groups
+def pullOutGroups(commands):
+    newCommands = []
+    i = 0
+    while i < len(commands):
+        cmd = commands[i]
+        if type(cmd) == Command and cmd.command == 0x2e:
+            funCallGroup = []
+            tryEnd = cmd.parameters[0]
+            i += 1
+            while commands[i] != tryEnd:
+                funCallGroup.append(commands[i])
+                i += 1
+            funCallGroup.append(tryEnd)
+            temp = pullOutGroups(funCallGroup)
+            funCallGroup = FunctionCallGroup(cmd.pushBit)
+            funCallGroup += temp
+            newCommands.append(funCallGroup)
+            newCommands.append(tryEnd)
+        else:
+            newCommands.append(cmd)
+        i += 1
+    return newCommands
 
 def decompileFunc(func, s):
     global currentFunc, index
     currentFunc = func
-    index = len(func) - 1
+    currentFunc.cmds = pullOutGroups(currentFunc.cmds)
+    index = len(currentFunc) - 1
     insertPos = len(s)
     while index >= 0:
         decompiledCmd = decompileCmd(func[index])
         if decompiledCmd:
             if type(decompiledCmd) == list:
-                for i in decompiledCmd[::-1]:
+                for i in decompiledCmd:
                     if i != None:
                         s.insert(insertPos, i)
             else:
@@ -227,15 +292,15 @@ def getGlobalVars(mscFile):
                     else:
                         varFloat[varNum] += 1
 
-    globalVarTypes = ["int" for i in range(globalVarCount)]
-    for i in range(globalVarCount):
+    globalVarTypes = ["int" for i in range(globalVarCount + 1)]
+    for i in range(globalVarCount + 1):
         if i in varInt or i in varFloat:
             intCount = varInt[i] if i in varInt else 0
             floatCount = varFloat[i] if i in varFloat else 0
             if floatCount > intCount:
                 globalVarTypes[i] = "float"
 
-    return [c_ast.Decl(globalVarTypes[i], "global{}".format(i)) for i in range(globalVarCount)]
+    return [c_ast.Decl(globalVarTypes[i], "global{}".format(i)) for i in range(globalVarCount + 1)]
 
 def printC(globalVars, funcs, file=None):
     for decl in globalVars:
@@ -263,7 +328,8 @@ def main():
     for script in mscFile:
         funcs.append(decompile(script))
 
-    printC(globalVarDecls, funcs)
+    with open("testDecompileFalcon.c", "w") as f:
+        printC(globalVarDecls, funcs, f)
 
 if __name__ == "__main__":
     main()

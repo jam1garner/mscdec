@@ -2,3 +2,6 @@ captain.mscsb
 testDecompileFalcon.c
 *.pyc
 .vscode
+captain
+testIsFloat.py
+testIsInt.py

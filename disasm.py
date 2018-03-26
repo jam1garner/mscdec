@@ -52,7 +52,7 @@ def updateScriptReference(popped, index, scriptName):
 #endPosition - when to stop searching (i.e. when the stack is empty and paths recombine)
 #depth - used to determine whether or not a path can be abandoned
 def emuScript(script, startIndex, stack, passCount, endPosition=None, depth=0):
-    global clearedPaths,scriptCalledVars
+    global clearedPaths,scriptCalledVars, mscFile
     scriptName = scriptNames[script.bounds[0]]
     if endPosition == None:
         clearedPaths = []
@@ -76,6 +76,10 @@ def emuScript(script, startIndex, stack, passCount, endPosition=None, depth=0):
                 #if the command is a function call
                 if script[i].command in [0x2f, 0x30, 0x31]:
                     updateScriptReference(popped, 0, scriptName)
+                #if the command is a printf
+                if script[i].command == 0x2c and popped[-1].command in [0xA, 0xD]:
+                    if type(popped[-1].parameters[0]) != str:
+                        popped[-1].parameters[0] = mscFile.strings[popped[-1].parameters[0]]
                 #if the command in a sys call
                 if script[i].command == 0x2d:
                     if script[i].parameters[1] == 0:
@@ -140,6 +144,32 @@ def emuScript(script, startIndex, stack, passCount, endPosition=None, depth=0):
         raise
     return True
 
+def guessIsFloat(bits):
+    if bits == 0:
+        return False
+        
+    sign = (bits & 0x80000000) != 0
+    exp = ((bits & 0x7f800000) >> 23) - 127
+    mant = bits & 0x007fffff
+
+    # +- 0.0
+    if exp == -127 and mant == 0:
+        return True
+
+    # +- 1 billionth to 1 billion
+    if -30 <= exp and exp <= 30:
+        return True
+
+    # some value with only a few binary digits
+    if (mant & 0x0000ffff) == 0:
+        return True
+
+    return False
+
+def pickTypes(script):
+    for cmd in script:
+        if cmd.command in []
+
 def disasm(fname):
     global clearedPaths,scriptCalledVars,mscFile,charAcmdNames
 
@@ -164,13 +194,14 @@ def disasm(fname):
     for i,script in enumerate(mscFile):
         clearedPaths = []
         emuScript(script, 0, [], 2)
+        pickTypes(script)
 
         jumpPositions = {}
         for cmd in script:
             if cmd.command in [0x4, 0x5, 0x2e, 0x34, 0x35, 0x36]:
                 if not cmd.parameters[0] in jumpPositions:
                     jumpPositions[cmd.parameters[0]] = Label("loc_%X" % (cmd.parameters[0]))
-                    cmd.parameters[0] = jumpPositions[cmd.parameters[0]]
+                cmd.parameters[0] = jumpPositions[cmd.parameters[0]]
 
         j = 0
         while j < len(script):
