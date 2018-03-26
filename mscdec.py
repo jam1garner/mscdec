@@ -233,6 +233,7 @@ def pullOutGroups(commands):
             while index > 0:
                 if type(newCommands[index]) in [Command, FunctionCallGroup] and newCommands[index].pushBit and numPushedBack == cmd.parameters[0]:
                     newCommands.insert(index + 1, Cast("float" if cmd.command == 0x38 else "int"))
+                    break
                 if type(newCommands[index]) == Command:
                     numPushedBack -= COMMAND_STACKPOPS[newCommands[index].command](newCommands[index].parameters) - int(newCommands[index].pushBit)
                 elif type(newCommands[index]) == FunctionCallGroup:
