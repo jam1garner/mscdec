@@ -158,8 +158,10 @@ def guessIsFloat(bits):
     mant = bits & 0x007fffff
 
     testFloat = unpack("f", pack("I", bits))[0]
-    if testFloat < 0.000001 or isnan(testFloat):
+    if abs(testFloat) < 0.000001 or isnan(testFloat):
         return False
+    elif sign:
+        return True
 
     # +- 0.0
     if exp == -127 and mant == 0:
