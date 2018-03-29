@@ -69,6 +69,9 @@ ASSIGNMENT_OPERATIONS = {
     0x45 : "/="
 }
 
+# Gets the local variable types for a function
+# is merely an educated guess based on what commands
+# reference it.
 def getLocalVarTypes(func, varCount):
     varInt = {}
     varFloat = {}
@@ -98,6 +101,10 @@ def getLocalVarTypes(func, varCount):
 
     return localVarTypes
 
+# Helper function for decompileCmd which is used for recursive calls in order
+# to grab arguments based on their pushbit so they can be used within the
+# original command. Returns a tuple of lists, the first being commands run in between
+# and the later being the arguments to use.
 def getArgs(argc):
     global currentFunc, index
 
@@ -120,6 +127,8 @@ class FunctionCallGroup(list):
         super().__init__(self)
         self.pushBit = pushBit
 
+# Recursively decompile from commands to an AST, uses global variable "index" to keep track of position,
+# iterating backwards through the function in order to assign arguments to the things that use them.
 def decompileCmd(cmd):
     global currentFunc, index, localVars, globalVars, funcNames
 
@@ -213,6 +222,9 @@ class Cast:
         self.type = type
 
 # Put function calls into a seperate groups
+# this relocates casts into inline objects and puts function calls into their own object
+# so they can be seen as one command with a push bit, also moves control flow into seperate objects
+# to later be decompiled recursively
 def pullOutGroups(commands):
     newCommands = []
     i = 0
@@ -248,6 +260,7 @@ def pullOutGroups(commands):
         i += 1
     return newCommands
 
+# Decopmiles the commands of the function and stores the resulting AST in the list s
 def decompileFunc(func, s):
     global currentFunc, index
     currentFunc = func
@@ -266,6 +279,8 @@ def decompileFunc(func, s):
                     s.insert(insertPos, decompiledCmd)
         index -= 1
 
+# Takes a function and decompiles it, including setting up local variables
+# returns the decompiled function
 def decompile(func, funcNum):
     global localVars, funcTypes
 
@@ -295,6 +310,8 @@ def decompile(func, funcNum):
 
     return f
 
+# Detect all the global vars referenced in the file (and any that must exist) and return them
+# returns a list of c_ast.Decl objects (type and name)
 def getGlobalVars(mscFile):
     varInt = {}
     varFloat = {}
@@ -328,6 +345,7 @@ def getGlobalVars(mscFile):
 
     return [c_ast.Decl(globalVarTypes[i], "global{}".format(i)) for i in range(globalVarCount + 1)]
 
+# Takes the global variables and functions and prints them out as C to a file
 def printC(globalVars, funcs, file=None):
     for decl in globalVars:
         print(str(decl) + ";", file=file)
@@ -338,6 +356,8 @@ def printC(globalVars, funcs, file=None):
         print(func, file=file)
         print(file=file)
 
+# Attempt to determine return type of each function
+# returns a list of strings representing the return type of each function
 def getFuncTypes(mscFile):
     global globalVarDecls
     funcTypes = [None for _ in range(len(mscFile))]
