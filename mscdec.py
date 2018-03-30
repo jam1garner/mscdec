@@ -9,6 +9,15 @@ class DecompilerError(Exception):
     def __init__(self,*args,**kwargs):
         Exception.__init__(self,*args,**kwargs)
 
+class Cast:
+    def __init__(self, type):
+        self.type = type
+
+class FunctionCallGroup(list):
+    def __init__(self, pushBit=False):
+        super().__init__(self)
+        self.pushBit = pushBit
+
 FLOAT_VAR_COMMANDS = [0x14, 0x15, 0x3f, 0x40, 0x41, 0x42, 0x43, 0x44, 0x45]
 INT_VAR_COMMANDS = [0x1c, 0x1d, 0x1e, 0x1f, 0x20, 0x21, 0x22, 0x23, 0x24]
 VAR_COMMANDS = INT_VAR_COMMANDS + FLOAT_VAR_COMMANDS + [0xb]
@@ -122,11 +131,6 @@ def getArgs(argc):
             other.append(d)
     return other, args
 
-class FunctionCallGroup(list):
-    def __init__(self, pushBit=False):
-        super().__init__(self)
-        self.pushBit = pushBit
-
 # Recursively decompile from commands to an AST, uses global variable "index" to keep track of position,
 # iterating backwards through the function in order to assign arguments to the things that use them.
 def decompileCmd(cmd):
@@ -216,10 +220,6 @@ def decompileCmd(cmd):
     elif type(cmd) == Cast:
         other, args = getArgs(1)
         return other + [c_ast.Cast(cmd.type, args[0])]
-
-class Cast:
-    def __init__(self, type):
-        self.type = type
 
 # Put function calls into a seperate groups
 # this relocates casts into inline objects and puts function calls into their own object
