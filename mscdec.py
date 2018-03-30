@@ -18,6 +18,12 @@ class FunctionCallGroup(list):
         super().__init__(self)
         self.pushBit = pushBit
 
+class IfElseIntermediate:
+    def __init__(self, condition, ifCommands, elseCommands=None):
+        self.condition = condition
+        self.ifCommands = ifCommands
+        self.elseCommands = elseCommands
+
 FLOAT_VAR_COMMANDS = [0x14, 0x15, 0x3f, 0x40, 0x41, 0x42, 0x43, 0x44, 0x45]
 INT_VAR_COMMANDS = [0x1c, 0x1d, 0x1e, 0x1f, 0x20, 0x21, 0x22, 0x23, 0x24]
 VAR_COMMANDS = INT_VAR_COMMANDS + FLOAT_VAR_COMMANDS + [0xb]
@@ -207,6 +213,13 @@ def decompileCmd(cmd):
         cmd = currentFunc[index]
         other, args = getArgs(cmd.parameters[0] + 1)
 
+        while index > 0:
+            d = decompileCmd(currentFunc[index])
+            if type(d) == list:
+                other = d + other
+            else:
+                other.insert(0, d)
+
         if type(args[0]) == c_ast.ID and not args[0].name in funcNames:
             args[0] = c_ast.UnaryOp("*", args[0])
 
@@ -220,6 +233,48 @@ def decompileCmd(cmd):
     elif type(cmd) == Cast:
         other, args = getArgs(1)
         return other + [c_ast.Cast(cmd.type, args[0])]
+    elif type(cmd) == IfElseIntermediate:
+        oldFunc = currentFunc
+        oldIndex = index
+
+        currentFunc = cmd.condition
+        index = len(currentFunc) - 1
+        beforeIf, args = getArgs(1)
+        while index > 0:
+            d = decompileCmd(currentFunc[index])
+            if type(d) == list:
+                beforeIf = d + beforeIf
+            else:
+                beforeIf.insert(0, d)
+        ifCondition = args[1]
+        trueStatements = c_ast.Statements()
+        currentFunc = cmd.ifCommands
+        index = len(currentFunc) - 1
+        while index > 0:
+            d = decompileCmd(currentFunc[index])
+            if type(d) == list:
+                for i in d[::-1]:
+                    trueStatements.insert(0, i)
+            else:
+                trueStatements.insert(0, d)
+        if cmd.elseCommands != None:
+            currentFunc = cmd.ifCommands
+            index = len(currentFunc) - 1
+            falseStatements = c_ast.Statements()
+            while index > 0:
+                d = decompileCmd(currentFunc[index])
+                if type(d) == list:
+                    for i in d[::-1]:
+                        falseStatements.insert(0, i)
+                else:
+                    falseStatements.insert(0, d)
+        else:
+            falseStatements = None
+        
+        currentFunc = oldFunc
+        index = oldIndex
+
+        return beforeIf + [c_ast.If(ifCondition, trueStatements, falseStatements)]
 
 # Put function calls into a seperate groups
 # this relocates casts into inline objects and puts function calls into their own object
@@ -271,7 +326,7 @@ def decompileFunc(func, s):
         decompiledCmd = decompileCmd(func[index])
         if decompiledCmd:
             if type(decompiledCmd) == list:
-                for i in decompiledCmd:
+                for i in decompiledCmd[::-1]:
                     if i != None:
                         s.insert(insertPos, i)
             else:
