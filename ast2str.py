@@ -134,7 +134,7 @@ class If:
         self.falseStatements = falseStatements
 
     def __str__(self):
-        returnStr = "if({}){\n{}\n}".format(str(self.condition), str(self.trueStatements))
+        returnStr = "if({}) {{\n{}\n}}".format(str(self.condition), str(self.trueStatements))
 
         if self.falseStatements == None:
             pass
