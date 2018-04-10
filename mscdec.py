@@ -19,8 +19,9 @@ class FunctionCallGroup(list):
         self.pushBit = pushBit
 
 class IfElseIntermediate:
-    def __init__(self, condition, ifCommands, elseCommands=None):
-        self.condition = condition
+    def __init__(self, ifCommands, elseCommands=None):
+        self.isNot = False
+        self.pushBit = False
         self.ifCommands = ifCommands
         self.elseCommands = elseCommands
 
@@ -127,14 +128,26 @@ def getArgs(argc):
     args = []
     while len(args) < argc and index >= 0:
         index -= 1 
+        thisIndex = index
         d = decompileCmd(currentFunc[index])
         if type(d) == list:
             other = d[:-1] + other
             d = d[-1]
-        if ((type(currentFunc[index]) in [Command, FunctionCallGroup]) and currentFunc[index].pushBit) or type(currentFunc[index]) == Cast:
+        if ((type(currentFunc[thisIndex]) in [Command, FunctionCallGroup, IfElseIntermediate]) and currentFunc[thisIndex].pushBit) or type(currentFunc[thisIndex]) == Cast:
             args.append(d)
         else:
             other.append(d)
+    for i in range(len(args)):
+        if type(args[i]) == c_ast.If:
+            if args[i].falseStatements != None:
+                while None in args[i].falseStatements:
+                    args[i].falseStatements.remove(None)
+            if args[i].trueStatements != None:
+                while None in args[i].trueStatements:
+                    args[i].trueStatements.remove(None)
+            if args[i].falseStatements == None or len(args[i].falseStatements) != 1 or len(args[i].trueStatements) != 1:
+                raise DecompilerError("Error: found a bad if/else ternary block")
+            args[i] = c_ast.TernaryOp(args[i].condition, args[i].trueStatements[0], args[i].falseStatements[0])
     return other, args
 
 # Recursively decompile from commands to an AST, uses global variable "index" to keep track of position,
@@ -234,19 +247,10 @@ def decompileCmd(cmd):
         other, args = getArgs(1)
         return other + [c_ast.Cast(cmd.type, args[0])]
     elif type(cmd) == IfElseIntermediate:
+        beforeIf, args = getArgs(1)
+        ifCondition = args[0]
         oldFunc = currentFunc
         oldIndex = index
-
-        currentFunc = cmd.condition
-        index = len(currentFunc) - 1
-        beforeIf, args = getArgs(1)
-        while index > 0:
-            d = decompileCmd(currentFunc[index])
-            if type(d) == list:
-                beforeIf = d + beforeIf
-            else:
-                beforeIf.insert(0, d)
-        ifCondition = args[1]
         trueStatements = c_ast.Statements()
         currentFunc = cmd.ifCommands
         index = len(currentFunc) - 1
@@ -257,6 +261,7 @@ def decompileCmd(cmd):
                     trueStatements.insert(0, i)
             else:
                 trueStatements.insert(0, d)
+            index -= 1
         if cmd.elseCommands != None:
             currentFunc = cmd.ifCommands
             index = len(currentFunc) - 1
@@ -268,57 +273,22 @@ def decompileCmd(cmd):
                         falseStatements.insert(0, i)
                 else:
                     falseStatements.insert(0, d)
+                index -= 1
         else:
             falseStatements = None
         
         currentFunc = oldFunc
         index = oldIndex
-
+        if cmd.isNot:
+            ifCondition = c_ast.UnaryOp("!", ifCondition)
         return beforeIf + [c_ast.If(ifCondition, trueStatements, falseStatements)]
-
-# Put function calls into a seperate groups
-# this relocates casts into inline objects and puts function calls into their own object
-# so they can be seen as one command with a push bit, also moves control flow into seperate objects
-# to later be decompiled recursively
-def pullOutGroups(commands):
-    newCommands = []
-    i = 0
-    while i < len(commands):
-        cmd = commands[i]
-        if type(cmd) == Command and cmd.command == 0x2e:
-            funCallGroup = []
-            tryEnd = cmd.parameters[0]
-            i += 1
-            while commands[i] != tryEnd:
-                funCallGroup.append(commands[i])
-                i += 1
-            funCallGroup.append(tryEnd)
-            temp = pullOutGroups(funCallGroup)
-            funCallGroup = FunctionCallGroup(cmd.pushBit)
-            funCallGroup += temp
-            newCommands.append(funCallGroup)
-            newCommands.append(tryEnd)
-        elif type(cmd) == Command and cmd.command in [0x38, 0x39]:
-            index = len(newCommands) - 1
-            numPushedBack = 0
-            while index > 0:
-                if type(newCommands[index]) in [Command, FunctionCallGroup] and newCommands[index].pushBit and numPushedBack == cmd.parameters[0]:
-                    newCommands.insert(index + 1, Cast("float" if cmd.command == 0x38 else "int"))
-                    break
-                if type(newCommands[index]) == Command:
-                    numPushedBack -= COMMAND_STACKPOPS[newCommands[index].command](newCommands[index].parameters) - int(newCommands[index].pushBit)
-                elif type(newCommands[index]) == FunctionCallGroup:
-                    numPushedBack += int(newCommands[index].pushBit)
-                index -= 1
-        else:
-            newCommands.append(cmd)
-        i += 1
-    return newCommands
 
 # Decopmiles the commands of the function and stores the resulting AST in the list s
 def decompileFunc(func, s):
     global currentFunc, index
     currentFunc = func
+    if func.name == 'func_590':
+        print()
     currentFunc.cmds = pullOutGroups(currentFunc.cmds)
     index = len(currentFunc) - 1
     insertPos = len(s)
@@ -364,6 +334,105 @@ def decompile(func, funcNum):
         s.insert(i, decl)
 
     return f
+
+# Gets last object of type Command from list l
+def lastCommand(l):
+    for i in l[::-1]:
+        if type(i) != Label:
+            return i
+
+# Put function calls into a seperate groups
+# this relocates casts into inline objects and puts function calls into their own object
+# so they can be seen as one command with a push bit, also moves control flow into seperate objects
+# to later be decompiled recursively
+def pullOutGroups(commands):
+    newCommands = []
+    i = 0
+    while i < len(commands):
+        cmd = commands[i]
+        if type(cmd) == Command and cmd.command == 0x2e:
+            funCallGroup = []
+            tryEnd = cmd.parameters[0]
+            i += 1
+            while commands[i] != tryEnd:
+                funCallGroup.append(commands[i])
+                i += 1
+            funCallGroup.append(tryEnd)
+            temp = pullOutGroups(funCallGroup)
+            funCallGroup = FunctionCallGroup(cmd.pushBit)
+            funCallGroup += temp
+            newCommands.append(funCallGroup)
+            newCommands.append(tryEnd)
+        elif type(cmd) == Command and cmd.command in [0x38, 0x39]:
+            index = len(newCommands) - 1
+            numPushedBack = 0
+            while index > 0:
+                if type(newCommands[index]) in [Command, FunctionCallGroup] and newCommands[index].pushBit and numPushedBack == cmd.parameters[0]:
+                    newCommands.insert(index + 1, Cast("float" if cmd.command == 0x38 else "int"))
+                    break
+                if type(newCommands[index]) == Command:
+                    numPushedBack -= COMMAND_STACKPOPS[newCommands[index].command](newCommands[index].parameters) - int(newCommands[index].pushBit)
+                elif type(newCommands[index]) == FunctionCallGroup:
+                    numPushedBack += int(newCommands[index].pushBit)
+                index -= 1
+        elif type(cmd) == Command and cmd.command in [0x34, 0x35]:
+            isIfNot = (cmd.command == 0x35)
+            labelPosition = commands.index(cmd.parameters[0])
+            if labelPosition == -1:
+                raise DecompilerError("Label for if/ifNot not found at {}".format(cmd.commandPosition))
+            if labelPosition < i:
+                raise DecompilerError("Loops are not supported yet")
+
+            # Handle empty if
+            if commands[labelPosition - 1] == cmd:
+                intermediate = IfElseIntermediate([])
+                intermediate.isNot = isIfNot
+                newCommands.append(intermediate)
+            # Handle weird edge case, see script_6 of character standard lib
+            elif type(commands[labelPosition - 1]) == Command and commands[labelPosition - 1].command in [0x34, 0x35]:
+                badIfLabelPos = commands.index(commands[labelPosition - 1].parameters[0])
+                if type(commands[badIfLabelPos - 1]) == Command and commands[badIfLabelPos - 1].command == 0x36:
+                    badElseLabelPos = commands.index(commands[badIfLabelPos - 1].parameters[0])
+                    intermediate = IfElseIntermediate(pullOutGroups(commands[i + 1:badElseLabelPos+1]), pullOutGroups(commands[labelPosition + 1:badIfLabelPos-1]))
+                    intermediate.pushBit = len(intermediate.ifCommands) > 0 and lastCommand(intermediate.ifCommands).pushBit
+                    intermediate.isNot = isIfNot
+                    i = badElseLabelPos
+                elif labelPosition == badIfLabelPos:
+                    intermediate = IfElseIntermediate(pullOutGroups(commands[i + 1:labelPosition + 1]))
+                    intermediate.isNot = isIfNot
+                    newCommands.append(intermediate)
+                    i = labelPosition
+                else:
+                    raise DecompilerError("What even happened")
+                newCommands.append(intermediate)
+            elif type(commands[labelPosition - 1]) == Command and commands[labelPosition - 1].command == 0x36:
+                elseLabel = commands[labelPosition - 1].parameters[0]
+                elseLabelPos = commands.index(elseLabel)
+                if elseLabel == -1:
+                    raise DecompilerError("Label for else not found")
+                copyElse = False
+                for j in range(i + 1, labelPosition - 1):
+                    if type(commands[j]) == Command and commands[j].command in [0x34, 0x35] and commands[j].parameters[0] == cmd.parameters[0]:
+                        copyElse = True
+                        break
+                if copyElse:
+                    intermediate = IfElseIntermediate(pullOutGroups(commands[i + 1:elseLabelPos+1]), pullOutGroups(commands[labelPosition + 1:elseLabelPos+1]))
+                    intermediate.pushBit = len(intermediate.ifCommands) > 0 and lastCommand(intermediate.ifCommands).pushBit
+                else:
+                    intermediate = IfElseIntermediate(pullOutGroups(commands[i + 1:labelPosition - 1]), pullOutGroups(commands[labelPosition + 1:elseLabelPos+1]))
+                    intermediate.pushBit = len(intermediate.ifCommands) > 0 and lastCommand(intermediate.ifCommands).pushBit
+                intermediate.isNot = isIfNot
+                newCommands.append(intermediate)
+                i = elseLabelPos
+            else:
+                intermediate = IfElseIntermediate(pullOutGroups(commands[i + 1:labelPosition + 1]))
+                intermediate.isNot = isIfNot
+                newCommands.append(intermediate)
+                i = labelPosition
+        else:
+            newCommands.append(cmd)
+        i += 1
+    return newCommands
 
 # Detect all the global vars referenced in the file (and any that must exist) and return them
 # returns a list of c_ast.Decl objects (type and name)
