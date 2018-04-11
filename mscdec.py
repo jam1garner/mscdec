@@ -1,8 +1,7 @@
 from msc import *
 import ast2str as c_ast
 from disasm import disasm as mscsb_disasm
-from disasm import Label
-from disasm import ScriptRef
+from disasm import Label, ScriptRef
 import operator
 
 class DecompilerError(Exception):
@@ -130,7 +129,7 @@ def ifToTernaryOp(ifStatement):
         ifStatement.trueStatements[0] = ifToTernaryOp(ifStatement.trueStatements[0])
     if type(ifStatement.falseStatements[0]) == c_ast.If:
         ifStatement.falseStatements[0] = ifToTernaryOp(ifStatement.falseStatements[0])
-    return c_ast.TernaryOp(args[i].condition, ifStatement.trueStatements[0], ifStatement.falseStatements[0])
+    return c_ast.TernaryOp(ifStatement.condition, ifStatement.trueStatements[0], ifStatement.falseStatements[0])
 
 # Helper function for decompileCmd which is used for recursive calls in order
 # to grab arguments based on their pushbit so they can be used within the
