@@ -117,6 +117,21 @@ def getLocalVarTypes(func, varCount):
 
     return localVarTypes
 
+def ifToTernaryOp(ifStatement):
+    if ifStatement.falseStatements != None:
+        while None in ifStatement.falseStatements:
+            ifStatement.falseStatements.remove(None)
+    if ifStatement.trueStatements != None:
+        while None in ifStatement.trueStatements:
+            ifStatement.trueStatements.remove(None)
+    if ifStatement.falseStatements == None or len(ifStatement.falseStatements) != 1 or len(ifStatement.trueStatements) != 1:
+        raise DecompilerError("Error: found a bad if/else ternary block")
+    if type(ifStatement.trueStatements[0]) == c_ast.If:
+        ifStatement.trueStatements[0] = ifToTernaryOp(ifStatement.trueStatements[0])
+    if type(ifStatement.falseStatements[0]) == c_ast.If:
+        ifStatement.falseStatements[0] = ifToTernaryOp(ifStatement.falseStatements[0])
+    return c_ast.TernaryOp(args[i].condition, ifStatement.trueStatements[0], ifStatement.falseStatements[0])
+
 # Helper function for decompileCmd which is used for recursive calls in order
 # to grab arguments based on their pushbit so they can be used within the
 # original command. Returns a tuple of lists, the first being commands run in between
@@ -139,15 +154,8 @@ def getArgs(argc):
             other.append(d)
     for i in range(len(args)):
         if type(args[i]) == c_ast.If:
-            if args[i].falseStatements != None:
-                while None in args[i].falseStatements:
-                    args[i].falseStatements.remove(None)
-            if args[i].trueStatements != None:
-                while None in args[i].trueStatements:
-                    args[i].trueStatements.remove(None)
-            if args[i].falseStatements == None or len(args[i].falseStatements) != 1 or len(args[i].trueStatements) != 1:
-                raise DecompilerError("Error: found a bad if/else ternary block")
-            args[i] = c_ast.TernaryOp(args[i].condition, args[i].trueStatements[0], args[i].falseStatements[0])
+            args[i] = ifToTernaryOp(args[i])
+    other = list(filter(lambda a: a != None, other))
     return other, args
 
 # Recursively decompile from commands to an AST, uses global variable "index" to keep track of position,
@@ -232,6 +240,7 @@ def decompileCmd(cmd):
                 other = d + other
             else:
                 other.insert(0, d)
+            index -= 1
 
         if type(args[0]) == c_ast.ID and not args[0].name in funcNames:
             args[0] = c_ast.UnaryOp("*", args[0])
@@ -254,24 +263,26 @@ def decompileCmd(cmd):
         trueStatements = c_ast.Statements()
         currentFunc = cmd.ifCommands
         index = len(currentFunc) - 1
-        while index > 0:
+        while index >= 0:
             d = decompileCmd(currentFunc[index])
             if type(d) == list:
                 for i in d[::-1]:
-                    trueStatements.insert(0, i)
-            else:
+                    if i != None:
+                        trueStatements.insert(0, i)
+            elif d != None:
                 trueStatements.insert(0, d)
             index -= 1
         if cmd.elseCommands != None:
-            currentFunc = cmd.ifCommands
+            currentFunc = cmd.elseCommands
             index = len(currentFunc) - 1
             falseStatements = c_ast.Statements()
-            while index > 0:
+            while index >= 0:
                 d = decompileCmd(currentFunc[index])
                 if type(d) == list:
                     for i in d[::-1]:
-                        falseStatements.insert(0, i)
-                else:
+                        if i != None:
+                            falseStatements.insert(0, i)
+                elif d != None:
                     falseStatements.insert(0, d)
                 index -= 1
         else:
@@ -287,8 +298,6 @@ def decompileCmd(cmd):
 def decompileFunc(func, s):
     global currentFunc, index
     currentFunc = func
-    if func.name == 'func_590':
-        print()
     currentFunc.cmds = pullOutGroups(currentFunc.cmds)
     index = len(currentFunc) - 1
     insertPos = len(s)
@@ -299,9 +308,8 @@ def decompileFunc(func, s):
                 for i in decompiledCmd[::-1]:
                     if i != None:
                         s.insert(insertPos, i)
-            else:
-                if decompiledCmd != None:
-                    s.insert(insertPos, decompiledCmd)
+            elif decompiledCmd != None:
+                s.insert(insertPos, decompiledCmd)
         index -= 1
 
 # Takes a function and decompiles it, including setting up local variables
@@ -310,29 +318,31 @@ def decompile(func, funcNum):
     global localVars, funcTypes
 
     f = c_ast.FuncDef(funcTypes[funcNum], func.name, c_ast.DeclList(), c_ast.Statements())
-    # If non-empty function that doesn't start with 0x2
-    if len(func.cmds) != 0 and func.cmds[0].command != 0x2:
-        raise DecompilerError("Script {} doesn't start with a begin".format(func.name))
-    beginCommand = func.cmds[0]
-    argc = beginCommand.parameters[0]
-    varc = beginCommand.parameters[1]
-    localVarTypes = getLocalVarTypes(func, varc)
-    localVars = []
-    localVarDecls = []
-    for i in range(argc):
-        f.args.append(c_ast.Decl(localVarTypes[i], "arg{}".format(i)))
-        localVars.append(c_ast.ID("arg{}".format(i)))
-    for i in range(varc - argc):
-        localVarDecls.append(c_ast.Decl(localVarTypes[i + argc], "var{}".format(i + argc)))
-        localVars.append(c_ast.ID("var{}".format(i + argc)))
+    try:
+        # If non-empty function that doesn't start with 0x2
+        if len(func.cmds) != 0 and func.cmds[0].command != 0x2:
+            raise DecompilerError("Script {} doesn't start with a begin".format(func.name))
+        beginCommand = func.cmds[0]
+        argc = beginCommand.parameters[0]
+        varc = beginCommand.parameters[1]
+        localVarTypes = getLocalVarTypes(func, varc)
+        localVars = []
+        localVarDecls = []
+        for i in range(argc):
+            f.args.append(c_ast.Decl(localVarTypes[i], "arg{}".format(i)))
+            localVars.append(c_ast.ID("arg{}".format(i)))
+        for i in range(varc - argc):
+            localVarDecls.append(c_ast.Decl(localVarTypes[i + argc], "var{}".format(i + argc)))
+            localVars.append(c_ast.ID("var{}".format(i + argc)))
 
-    s = f.statements
-    decompileFunc(func, s)
+        s = f.statements
+        decompileFunc(func, s)
 
-    # Insert local var declarations at the beginning of the function, in order
-    for i, decl in enumerate(localVarDecls):
-        s.insert(i, decl)
-
+        # Insert local var declarations at the beginning of the function, in order
+        for i, decl in enumerate(localVarDecls):
+            s.insert(i, decl)
+    except Exception as e: 
+        f.statements = c_ast.Statements([c_ast.Comment("Error occurred while decompiling:\n{}".format(str(e)))])
     return f
 
 # Gets last object of type Command from list l
@@ -366,7 +376,7 @@ def pullOutGroups(commands):
         elif type(cmd) == Command and cmd.command in [0x38, 0x39]:
             index = len(newCommands) - 1
             numPushedBack = 0
-            while index > 0:
+            while index >= 0:
                 if type(newCommands[index]) in [Command, FunctionCallGroup] and newCommands[index].pushBit and numPushedBack == cmd.parameters[0]:
                     newCommands.insert(index + 1, Cast("float" if cmd.command == 0x38 else "int"))
                     break
