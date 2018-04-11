@@ -14,7 +14,7 @@ class BinaryOp:
         self.arg2 = arg2
 
     def __str__(self):
-        return "{} {} {}".format(str(self.arg1), self.op, str(self.arg2))
+        return "({} {} {})".format(str(self.arg1), self.op, str(self.arg2))
 
 class Break:
     def __str__(self):
@@ -168,7 +168,7 @@ class TernaryOp:
         self.falseStatement = falseStatement
 
     def __str__(self):
-        return "{} ? {} : {}".format(str(self.condition), str(self.trueStatement), str(self.falseStatement))
+        return "{} ? ({}) : ({})".format(str(self.condition), str(self.trueStatement), str(self.falseStatement))
 
 class UnaryOp:
     def __init__(self, op, id):
