@@ -7,6 +7,7 @@ class Assignment:
     def __str__(self):
         return '{} {} {}'.format(str(self.lvalue), self.op, str(self.rvalue))
 
+
 class BinaryOp:
     def __init__(self, op=None, arg1=None, arg2=None):
         self.op = op
@@ -14,7 +15,10 @@ class BinaryOp:
         self.arg2 = arg2
 
     def __str__(self):
-        return "({} {} {})".format(str(self.arg1), self.op, str(self.arg2))
+        formatString = ""
+        formatString += "({}) {} " if type(self.arg1) in _parenthesisTypes else "{} {} "
+        formatString += "({})" if type(self.arg2) in _parenthesisTypes else "{}"
+        return formatString.format(str(self.arg1), self.op, str(self.arg2))
 
 class Break:
     def __str__(self):
@@ -168,7 +172,10 @@ class TernaryOp:
         self.falseStatement = falseStatement
 
     def __str__(self):
-        return "{} ? ({}) : ({})".format(str(self.condition), str(self.trueStatement), str(self.falseStatement))
+        formatString = "({}) ? " if type(self.condition) in _parenthesisTypes else "{} ? "
+        formatString += "({}) : " if type(self.trueStatement) in _parenthesisTypes else "{} : "
+        formatString += "({})" if type(self.falseStatement) in _parenthesisTypes else "{}"
+        return formatString.format(str(self.condition), str(self.trueStatement), str(self.falseStatement))
 
 class UnaryOp:
     def __init__(self, op, id):
@@ -190,6 +197,8 @@ class While:
 
     def __str__(self):
         return "while({}){{\n{}\n}}".format(str(self.condition), str(self.statements))
+
+_parenthesisTypes = [BinaryOp, TernaryOp]
 
 # Example:
 # void main(){
