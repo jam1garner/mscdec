@@ -3,8 +3,7 @@ from argparse import ArgumentParser
 import ast2str as c_ast
 from disasm import disasm as mscsb_disasm
 from disasm import Label, ScriptRef
-import operator
-import os
+import operator, os, timeit
 
 class DecompilerError(Exception):
     def __init__(self,*args,**kwargs):
@@ -575,4 +574,7 @@ if __name__ == "__main__":
     parser = ArgumentParser(description="Decompile MSC bytecode to C")
     parser.add_argument('file', type=str, help='file to decompile')
     parser.add_argument('-o', dest='filename', help='Filename to output to')
+    start = timeit.default_timer()
     main(parser.parse_args())
+    end = timeit.default_timer()
+    print('Execution completed in %f seconds' % (end - start))
