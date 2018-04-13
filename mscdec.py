@@ -1,8 +1,10 @@
 from msc import *
+from argparse import ArgumentParser
 import ast2str as c_ast
 from disasm import disasm as mscsb_disasm
 from disasm import Label, ScriptRef
 import operator
+import os
 
 class DecompilerError(Exception):
     def __init__(self,*args,**kwargs):
@@ -541,11 +543,14 @@ def getFuncTypes(mscFile):
             funcTypes[i] = "int"
     return funcTypes
 
-def main():
+def main(args):
     global globalVars, globalVarDecls, funcTypes, funcNames
 
-    mscFile = mscsb_disasm("captain.mscsb")
+    print("Analyzing...")
+    mscFile = mscsb_disasm(args.file)
     
+    print("Decompiling...")
+
     globalVarDecls = getGlobalVars(mscFile)
 
     globalVars = [c_ast.ID(decl.name) for decl in globalVarDecls]
@@ -563,8 +568,11 @@ def main():
     for i, script in enumerate(mscFile):
         funcs.append(decompile(script, i))
 
-    with open("testDecompileFalcon.c", "w") as f:
+    with open(args.filename if args.filename != None else (os.path.basename(os.path.splitext(args.file)[0]) + '.c'), "w") as f:
         printC(globalVarDecls, funcs, f)
 
 if __name__ == "__main__":
-    main()
+    parser = ArgumentParser(description="Decompile MSC bytecode to C")
+    parser.add_argument('file', type=str, help='file to decompile')
+    parser.add_argument('-o', dest='filename', help='Filename to output to')
+    main(parser.parse_args())
