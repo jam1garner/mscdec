@@ -19,5 +19,7 @@ mscdec is MIT Licensed so feel free to copy/modify/whatever. More info in `LICEN
 ### Miscellaneous Info
 
 [Updates will be posted to my twitter](https://twitter.com/jam1garner)
+
 Want to attempt to recompile? Check out my compiler: https://github.com/jam1garner/msclang
+
 Need to report bugs? Submit them to the Issues tab and if I don't notice them DM me on twitter in case I missed it.
