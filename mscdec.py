@@ -1,8 +1,8 @@
 from msc import *
 from argparse import ArgumentParser
 import ast2str as c_ast
-from disasm import disasm as mscsb_disasm
-from disasm import Label, ScriptRef
+from disasmlib import disasm as mscsb_disasm
+from disasmlib import Label, ScriptRef
 import operator, os, timeit
 
 class DecompilerError(Exception):
