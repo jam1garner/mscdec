@@ -44,7 +44,7 @@ def updateScriptReference(popped, index, scriptName):
         if popped[index].command == 0xB:
             #if the variable is local
             if popped[index].parameters[0] == 0:
-                if not scriptName in scriptCalledVars.keys():
+                if not scriptName in scriptCalledVars:
                     scriptCalledVars[scriptName] = []
                 if not popped[index].parameters[1] in scriptCalledVars[scriptName]:
                     scriptCalledVars[scriptName].append(popped[index].parameters[1])
@@ -99,21 +99,21 @@ def emuScript(script, startIndex, stack, passCount, endPosition=None, depth=0):
                 if script[i].command == 0x1C and script[i].parameters[0] == 0x1 and gvIsOffset[script[i].parameters[1]]:
                     updateScriptReference(popped, 0, scriptName)
             elif passCount >= 1:
-                if script[i].command in [0x1C, 0x41] and scriptName in scriptCalledVars.keys():
+                if script[i].command in [0x1C, 0x41] and scriptName in scriptCalledVars:
                     if script[i].parameters[0] == 0 and script[i].parameters[1] in scriptCalledVars[scriptName]:
                         updateScriptReference(popped, 0, scriptName)
                 if script[i].command in [0x2f, 0x30, 0x31]:
                     if popped[0].command in [0xA, 0xD]:
                         jumpScriptName = None
-                        if isinstance(popped[0].parameters[0], int) and popped[0].parameters[0] in scriptNames.keys():
+                        if isinstance(popped[0].parameters[0], int) and popped[0].parameters[0] in scriptNames:
                             jumpScriptName = scriptNames[popped[0].parameters[0]]
                         elif isinstance(popped[0].parameters[0], str):
                             jumpScriptName = popped[0].parameters[0]
 
-                        if jumpScriptName in scriptCalledVars.keys():
+                        if jumpScriptName in scriptCalledVars:
                             for localVarNum in scriptCalledVars[jumpScriptName]:
                                 if localVarNum+1 < len(popped):
-                                    updateScriptReference(popped, localVarNum + 1, scriptName)
+                                    updateScriptReference(popped, -(localVarNum + 1), scriptName)
 
             #if the command is push, just readd the command before it
             if script[i].command == 0x32:
