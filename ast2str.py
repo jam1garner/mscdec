@@ -21,6 +21,9 @@ class BinaryOp:
         return formatString.format(str(self.arg1), self.op, str(self.arg2))
 
 class Break:
+    def __init__(self):
+        self.pushBit = False
+        
     def __str__(self):
         return "break"
 

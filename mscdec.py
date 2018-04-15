@@ -298,6 +298,35 @@ def decompileCmd(cmd):
         if cmd.isNot:
             ifCondition = c_ast.UnaryOp("!", ifCondition)
         return beforeIf + [c_ast.If(ifCondition, trueStatements, falseStatements)]
+    elif type(cmd) == WhileIntermediate:
+        oldFunc = currentFunc
+        oldIndex = index
+        loopStatements = c_ast.Statements()
+        currentFunc = cmd.commands
+        index = len(currentFunc) - 1
+        other, condition = getArgs(1)
+        condition = condition[0]
+        for i in other[::-1]:
+            loopStatements.insert(0, i)
+        while index >= 0:
+            d = decompileCmd(currentFunc[index])
+            if type(d) == list:
+                for i in d[::-1]:
+                    if i != None:
+                        loopStatements.insert(0, i)
+            elif d != None:
+                loopStatements.insert(0, d)
+            index -= 1
+        currentFunc = oldFunc
+        index = oldIndex
+        if not cmd.isIfNot:
+            condition = c_ast.UnaryOp("!", condition)
+        if cmd.isDoWhile:
+            return c_ast.DoWhile(condition, loopStatements)
+        else:
+            return c_ast.While(condition, loopStatements)
+    elif type(cmd) == c_ast.Break:
+        return cmd
 
 # Decopmiles the commands of the function and stores the resulting AST in the list s
 def decompileFunc(func, s):
@@ -459,6 +488,11 @@ def pullOutLoops(commands):
             isDoWhile =  not (type(commands[labelPosition-1]) == Command and
                               commands[labelPosition-1].command in [4, 5, 36] and
                               commands[labelPosition-1].parameters[0] in range(labelPosition, i))
+            if type(commands[i+1]) == Label:
+                endLabel = commands[i+1]
+                for j in range(labelPosition, i):
+                    if type(commands[j]) == Command and commands[j].command in [0x4, 0x5, 0x36] and commands[j].parameters[0] == endLabel:
+                        commands[j] = c_ast.Break()
             newCommands.insert(0, WhileIntermediate(isDoWhile, pullOutGroups(pullOutLoops(commands[labelPosition:i])), isIfNot))
             i = labelPosition
         else:
