@@ -566,14 +566,24 @@ def main(args):
 
     for i, script in enumerate(mscFile):
         funcs.append(decompile(script, i))
-
-    with open(args.filename if args.filename != None else (os.path.basename(os.path.splitext(args.file)[0]) + '.c'), "w") as f:
-        printC(globalVarDecls, funcs, f)
+    if args.split:
+        stdlibFuncs = []
+        while funcs[0].name != "main":
+            stdlibFuncs.append(funcs.pop(0))
+        with open("stdlib.c", "w") as f:
+            printC(globalVarDecls, stdlibFuncs, f)
+        with open(args.filename if args.filename != None else (os.path.basename(os.path.splitext(args.file)[0]) + '.c'), "w") as f:
+            print('#include "stdlib.c"', file=f)
+            printC([], funcs, f)
+    else:
+        with open(args.filename if args.filename != None else (os.path.basename(os.path.splitext(args.file)[0]) + '.c'), "w") as f:
+            printC(globalVarDecls, funcs, f)
 
 if __name__ == "__main__":
     parser = ArgumentParser(description="Decompile MSC bytecode to C")
     parser.add_argument('file', type=str, help='file to decompile')
     parser.add_argument('-o', dest='filename', help='Filename to output to')
+    parser.add_argument('-s', '--split', action='store_true', help='Split to put all functions before main() into stdlib.c')
     start = timeit.default_timer()
     main(parser.parse_args())
     end = timeit.default_timer()
