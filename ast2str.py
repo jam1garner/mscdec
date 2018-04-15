@@ -29,7 +29,12 @@ class Break:
 
 class Statements(list):
     def __str__(self):
-        return '\n'.join([str(i) + ';' for i in self])
+        temp = ""
+        if len(self) != 0:
+            temp = str(self[0]) + ("" if type(self[0]) in _noSemicolon else ";") 
+            for i in self[1:]:
+                temp += "\n" + str(i) + ("" if type(i) in _noSemicolon else ";")
+        return temp
 
 class Cast:
     def __init__(self, type, statement):
@@ -202,6 +207,7 @@ class While:
         return "while({}){{\n{}\n}}".format(str(self.condition), str(self.statements))
 
 _parenthesisTypes = [BinaryOp, TernaryOp]
+_noSemicolon = [While, DoWhile, For, If, Comment]
 
 # Example:
 # void main(){
