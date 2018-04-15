@@ -25,6 +25,12 @@ class IfElseIntermediate:
         self.ifCommands = ifCommands
         self.elseCommands = elseCommands
 
+class WhileIntermediate:
+    def __init__(self, isDowWhile, commands, isIfNot):
+        self.isDoWhile = isDowWhile
+        self.isIfNot = isIfNot
+        self.commands = commands
+
 FLOAT_VAR_COMMANDS = [0x14, 0x15, 0x3f, 0x40, 0x41, 0x42, 0x43, 0x44, 0x45]
 INT_VAR_COMMANDS = [0x1c, 0x1d, 0x1e, 0x1f, 0x20, 0x21, 0x22, 0x23, 0x24]
 VAR_COMMANDS = INT_VAR_COMMANDS + FLOAT_VAR_COMMANDS + [0xb]
@@ -138,7 +144,6 @@ def ifToTernaryOp(ifStatement):
 # and the later being the arguments to use.
 def getArgs(argc):
     global currentFunc, index
-
     other = []
     args = []
     while len(args) < argc and index >= 0:
@@ -298,7 +303,7 @@ def decompileCmd(cmd):
 def decompileFunc(func, s):
     global currentFunc, index
     currentFunc = func
-    currentFunc.cmds = pullOutGroups(currentFunc.cmds)
+    currentFunc.cmds = pullOutGroups(pullOutLoops(currentFunc.cmds))
     index = len(currentFunc) - 1
     insertPos = len(s)
     while index >= 0:
@@ -392,9 +397,8 @@ def pullOutGroups(commands):
                 raise DecompilerError("Label for if/ifNot not found at {}".format(cmd.commandPosition))
             if labelPosition < i:
                 raise DecompilerError("Loops are not supported yet")
-
             # Handle empty if
-            if commands[labelPosition - 1] == cmd:
+            elif commands[labelPosition - 1] == cmd:
                 intermediate = IfElseIntermediate([])
                 intermediate.isNot = isIfNot
                 newCommands.append(intermediate)
@@ -442,6 +446,24 @@ def pullOutGroups(commands):
         else:
             newCommands.append(cmd)
         i += 1
+    return newCommands
+
+def pullOutLoops(commands):
+    newCommands = []
+    i = len(commands) - 1
+    while i >= 0:
+        cmd = commands[i]
+        if type(cmd) == Command and cmd.command in [0x34, 0x35] and commands.index(cmd.parameters[0]) < i:
+            isIfNot = (cmd.command == 0x35)
+            labelPosition = commands.index(cmd.parameters[0])
+            isDoWhile =  not (type(commands[labelPosition-1]) == Command and
+                              commands[labelPosition-1].command in [4, 5, 36] and
+                              commands[labelPosition-1].parameters[0] in range(labelPosition, i))
+            newCommands.insert(0, WhileIntermediate(isDoWhile, pullOutGroups(pullOutLoops(commands[labelPosition:i])), isIfNot))
+            i = labelPosition
+        else:
+            newCommands.insert(0, commands[i])
+        i -= 1
     return newCommands
 
 # Detect all the global vars referenced in the file (and any that must exist) and return them
