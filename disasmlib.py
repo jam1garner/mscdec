@@ -49,6 +49,7 @@ def updateScriptReference(popped, index, scriptName):
                 if not popped[index].parameters[1] in scriptCalledVars[scriptName]:
                     scriptCalledVars[scriptName].append(popped[index].parameters[1])
     except:
+        print(scriptName)
         raise
 
 #script - mscScript object
