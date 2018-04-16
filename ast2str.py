@@ -1,3 +1,6 @@
+def tabulate(text):
+    return '\n'.join(['    ' + i for i in text.split('\n')])
+
 class Assignment:
     def __init__(self, op, lvalue, rvalue):
         self.op = op
@@ -6,7 +9,6 @@ class Assignment:
     
     def __str__(self):
         return '{} {} {}'.format(str(self.lvalue), self.op, str(self.rvalue))
-
 
 class BinaryOp:
     def __init__(self, op=None, arg1=None, arg2=None):
@@ -91,7 +93,7 @@ class DoWhile:
         self.statements = statements
 
     def __str__(self):
-        return "do{{\n{}\n}}while({})".format(self.statements, self.condition)
+        return "do\n{{\n{}\n}} while({})".format(tabulate(str(self.statements)), self.condition)
 
 class EmptyStatement:
     def __str__(self):
@@ -105,7 +107,7 @@ class For:
         self.statements = statements
 
     def __str__(self):
-        return "for({};{};{}){{\n{}\n}}".format(self.initialize, self.condition, self.iterate, self.statements)
+        return "for({};{};{})\n{{\n{}\n}}".format(self.initialize, self.condition, self.iterate, tabulate(str(self.statements)))
 
 class FuncCall:
     def __init__(self, function, args):
@@ -123,7 +125,7 @@ class FuncDef:
         self.statements = statements
 
     def __str__(self):
-        return "{} {}({}){{\n{}\n}}".format(str(self.type), str(self.name), str(self.args), str(self.statements))
+        return "{} {}({})\n{{\n{}\n}}".format(str(self.type), str(self.name), str(self.args), tabulate(str(self.statements)))
 
 class Goto:
     def __init__(self, labelName):
@@ -146,14 +148,14 @@ class If:
         self.falseStatements = falseStatements
 
     def __str__(self):
-        returnStr = "if({}) {{\n{}\n}}".format(str(self.condition), str(self.trueStatements))
+        returnStr = "if ({})\n{{\n{}\n}}".format(str(self.condition), tabulate(str(self.trueStatements)))
 
         if self.falseStatements == None:
             pass
         elif len(self.falseStatements) == 1 and type(self.falseStatements[0]) == If:
-            returnStr += " else {}".format(self.falseStatements[0])
+            returnStr += "\nelse {}".format(self.falseStatements[0])
         else:
-            returnStr += " else {{\n{}\n}}".format(self.falseStatements)
+            returnStr += "\nelse\n{{\n{}\n}}".format(tabulate(str(self.falseStatements)))
 
         return returnStr
 
@@ -204,10 +206,10 @@ class While:
         self.statements = statements
 
     def __str__(self):
-        return "while({}){{\n{}\n}}".format(str(self.condition), str(self.statements))
+        return "while ({})\n{{\n{}\n}}".format(str(self.condition), tabulate(str(self.statements)))
 
 _parenthesisTypes = [BinaryOp, TernaryOp]
-_noSemicolon = [While, DoWhile, For, If, Comment]
+_noSemicolon = [While, For, If, Comment]
 
 # Example:
 # void main(){
