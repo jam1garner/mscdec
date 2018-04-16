@@ -6,3 +6,4 @@ captain
 testIsFloat.py
 testIsInt.py
 *.mscsb
+*.c
