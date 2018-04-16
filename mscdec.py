@@ -31,8 +31,8 @@ class WhileIntermediate:
         self.isIfNot = isIfNot
         self.commands = commands
 
-FLOAT_VAR_COMMANDS = [0x14, 0x15, 0x3f, 0x40, 0x41, 0x42, 0x43, 0x44, 0x45]
-INT_VAR_COMMANDS = [0x1c, 0x1d, 0x1e, 0x1f, 0x20, 0x21, 0x22, 0x23, 0x24]
+FLOAT_VAR_COMMANDS = [0x3f, 0x40, 0x41, 0x42, 0x43, 0x44, 0x45]
+INT_VAR_COMMANDS = [0x14, 0x15, 0x1c, 0x1d, 0x1e, 0x1f, 0x20, 0x21, 0x22, 0x23, 0x24]
 VAR_COMMANDS = INT_VAR_COMMANDS + FLOAT_VAR_COMMANDS + [0xb]
 BINARY_OPERATIONS = {
     0xe  : "+",
@@ -519,7 +519,9 @@ def getGlobalVars(mscFile):
                         varInt[varNum] = 1
                     else:
                         varInt[varNum] += 1
-                else:
+                elif cmd.command in FLOAT_VAR_COMMANDS:
+                    if varNum == 20:
+                        print()
                     if not varNum in varFloat:
                         varFloat[varNum] = 1
                     else:
