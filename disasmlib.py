@@ -126,7 +126,7 @@ def emuScript(script, startIndex, stack, passCount, endPosition=None, depth=0):
             if script[i].command in [0x34, 0x35]:
                 jumpIndex = script.getIndexOfInstruction(script[i].parameters[0])
                 endOfBlock = jumpIndex
-                if script[jumpIndex - 1].command == 0x36:
+                if script[jumpIndex - 1].command in [4, 5, 0x36]:
                     endOfBlock = script.getIndexOfInstruction(script[jumpIndex - 1].parameters[0])
                     finished = emuScript(script, jumpIndex, stack, passCount, endOfBlock, depth+1)
                 elif len(stack) > 0:
