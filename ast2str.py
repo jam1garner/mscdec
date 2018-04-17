@@ -198,6 +198,8 @@ class UnaryOp:
         elif self.op == "*":
             return "({}{})".format(str(self.op), str(self.id))
         else:
+            if type(self.id) in _parenthesisTypes:
+                return "{}({})".format(str(self.op), str(self.id))
             return "{}{}".format(str(self.op), str(self.id))
 
 class While:
