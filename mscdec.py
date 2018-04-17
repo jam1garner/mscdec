@@ -113,8 +113,6 @@ def getGlobalVars(mscFile):
                     else:
                         varInt[varNum] += 1
                 elif cmd.command in FLOAT_VAR_COMMANDS:
-                    if varNum == 20:
-                        print()
                     if not varNum in varFloat:
                         varFloat[varNum] = 1
                     else:
@@ -563,15 +561,15 @@ def pullOutLoops(commands):
             isIfNot = (cmd.command == 0x35)
             labelPosition = commands.index(cmd.parameters[0])
             isDoWhile =  not (type(commands[labelPosition-1]) == Command and
-                              commands[labelPosition-1].command in [4, 5, 36] and
-                              commands[labelPosition-1].parameters[0] in range(labelPosition, i))
+                              commands[labelPosition-1].command in [4, 5, 54] and
+                              commands[labelPosition-1].parameters[0] in commands[labelPosition:i])
             if type(commands[i+1]) == Label:
                 endLabel = commands[i+1]
                 for j in range(labelPosition, i):
                     if type(commands[j]) == Command and commands[j].command in [0x4, 0x5, 0x36] and commands[j].parameters[0] == endLabel:
                         commands[j] = c_ast.Break()
             newCommands.insert(0, WhileIntermediate(isDoWhile, pullOutGroups(pullOutLoops(commands[labelPosition:i])), isIfNot))
-            i = labelPosition
+            i = labelPosition + 1
         else:
             newCommands.insert(0, commands[i])
         i -= 1
