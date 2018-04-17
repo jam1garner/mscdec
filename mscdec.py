@@ -34,6 +34,8 @@ class WhileIntermediate:
 FLOAT_VAR_COMMANDS = [0x3f, 0x40, 0x41, 0x42, 0x43, 0x44, 0x45]
 INT_VAR_COMMANDS = [0x14, 0x15, 0x1c, 0x1d, 0x1e, 0x1f, 0x20, 0x21, 0x22, 0x23, 0x24]
 VAR_COMMANDS = INT_VAR_COMMANDS + FLOAT_VAR_COMMANDS + [0xb]
+USES_INT = [0xe, 0xf, 0x10, 0x11, 0x12, 0x13, 0x1d, 0x1e, 0x1f, 0x20, 0x21, 0x24, 0x25, 0x26, 0x27, 28, 0x29, 0x2a]
+USES_FLOAT = [0x3a, 0x3b, 0x3c, 0x3d, 0x3e, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x4a, 0x4b]
 BINARY_OPERATIONS = {
     0xe  : "+",
     0xf  : "-",
@@ -91,13 +93,69 @@ ASSIGNMENT_OPERATIONS = {
     0x45 : "/="
 }
 
+# Detect all the global vars referenced in the file (and any that must exist) and return them
+# returns a list of c_ast.Decl objects (type and name)
+def getGlobalVars(mscFile):
+    varInt = {}
+    varFloat = {}
+    globalVarCount = 0
+    for func in mscFile:
+        for i,cmd in enumerate(func):
+            if type(cmd) != Command:
+                continue
+            if cmd.command in VAR_COMMANDS and cmd.parameters[0] == 1:
+                varNum = cmd.parameters[1]
+                if varNum > globalVarCount:
+                    globalVarCount = varNum
+                if cmd.command in INT_VAR_COMMANDS:
+                    if not varNum in varInt:
+                        varInt[varNum] = 1
+                    else:
+                        varInt[varNum] += 1
+                elif cmd.command in FLOAT_VAR_COMMANDS:
+                    if varNum == 20:
+                        print()
+                    if not varNum in varFloat:
+                        varFloat[varNum] = 1
+                    else:
+                        varFloat[varNum] += 1
+                elif cmd.command == 0xb:
+                    i += 1
+                    while i < len(func):
+                        if type(func[i]) == Command:
+                            if func[i].command in [0x38, 0x39]:
+                                break
+                            elif COMMAND_STACKPOPS[func[i].command](func[i].parameters) > 0:
+                                if func[i].command in USES_FLOAT:
+                                    if not varNum in varFloat:
+                                        varFloat[varNum] = 1
+                                    else:
+                                        varFloat[varNum] += 1
+                                elif func[i].command in USES_INT:
+                                    if not varNum in varInt:
+                                        varInt[varNum] = 1
+                                    else:
+                                        varInt[varNum] += 1
+                                break
+                        i += 1
+
+    globalVarTypes = ["int" for i in range(globalVarCount + 1)]
+    for i in range(globalVarCount + 1):
+        if i in varInt or i in varFloat:
+            intCount = varInt[i] if i in varInt else 0
+            floatCount = varFloat[i] if i in varFloat else 0
+            if floatCount > intCount:
+                globalVarTypes[i] = "float"
+
+    return [c_ast.Decl(globalVarTypes[i], "global{}".format(i)) for i in range(globalVarCount + 1)]
+
 # Gets the local variable types for a function
 # is merely an educated guess based on what commands
 # reference it.
 def getLocalVarTypes(func, varCount):
     varInt = {}
     varFloat = {}
-    for cmd in func:
+    for i,cmd in enumerate(func):
         if type(cmd) != Command:
             continue
         if cmd.command in VAR_COMMANDS and cmd.parameters[0] == 0:
@@ -112,6 +170,25 @@ def getLocalVarTypes(func, varCount):
                     varFloat[varNum] = 1
                 else:
                     varFloat[varNum] += 1
+            elif cmd.command == 0xb:
+                i += 1
+                while i < len(func):
+                    if type(func[i]) == Command:
+                        if func[i].command in [0x38, 0x39]:
+                            break
+                        elif COMMAND_STACKPOPS[func[i].command](func[i].parameters) > 0:
+                            if func[i].command in USES_FLOAT:
+                                if not varNum in varFloat:
+                                    varFloat[varNum] = 1
+                                else:
+                                    varFloat[varNum] += 1
+                            elif func[i].command in USES_INT:
+                                if not varNum in varInt:
+                                    varInt[varNum] = 1
+                                else:
+                                    varInt[varNum] += 1
+                            break
+                    i += 1
 
     localVarTypes = ["int" for i in range(varCount)]
     for i in range(varCount):
@@ -499,43 +576,6 @@ def pullOutLoops(commands):
             newCommands.insert(0, commands[i])
         i -= 1
     return newCommands
-
-# Detect all the global vars referenced in the file (and any that must exist) and return them
-# returns a list of c_ast.Decl objects (type and name)
-def getGlobalVars(mscFile):
-    varInt = {}
-    varFloat = {}
-    globalVarCount = 0
-    for script in mscFile:
-        for cmd in script:
-            if type(cmd) != Command:
-                continue
-            if cmd.command in VAR_COMMANDS and cmd.parameters[0] == 1:
-                varNum = cmd.parameters[1]
-                if varNum > globalVarCount:
-                    globalVarCount = varNum
-                if cmd.command in INT_VAR_COMMANDS:
-                    if not varNum in varInt:
-                        varInt[varNum] = 1
-                    else:
-                        varInt[varNum] += 1
-                elif cmd.command in FLOAT_VAR_COMMANDS:
-                    if varNum == 20:
-                        print()
-                    if not varNum in varFloat:
-                        varFloat[varNum] = 1
-                    else:
-                        varFloat[varNum] += 1
-
-    globalVarTypes = ["int" for i in range(globalVarCount + 1)]
-    for i in range(globalVarCount + 1):
-        if i in varInt or i in varFloat:
-            intCount = varInt[i] if i in varInt else 0
-            floatCount = varFloat[i] if i in varFloat else 0
-            if floatCount > intCount:
-                globalVarTypes[i] = "float"
-
-    return [c_ast.Decl(globalVarTypes[i], "global{}".format(i)) for i in range(globalVarCount + 1)]
 
 # Takes the global variables and functions and prints them out as C to a file
 def printC(globalVars, funcs, file=None):
