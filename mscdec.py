@@ -119,11 +119,13 @@ def getGlobalVars(mscFile):
                         varFloat[varNum] += 1
                 elif cmd.command == 0xb:
                     i += 1
+                    stackSize = 1
                     while i < len(func):
                         if type(func[i]) == Command:
                             if func[i].command in [0x38, 0x39]:
                                 break
-                            elif COMMAND_STACKPOPS[func[i].command](func[i].parameters) > 0:
+                            stackSize -= COMMAND_STACKPOPS[func[i].command](func[i].parameters)
+                            if stackSize <= 0:
                                 if func[i].command in USES_FLOAT:
                                     if not varNum in varFloat:
                                         varFloat[varNum] = 1
@@ -135,6 +137,7 @@ def getGlobalVars(mscFile):
                                     else:
                                         varInt[varNum] += 1
                                 break
+                            stackSize += 1 if func[i].pushBit else 0
                         i += 1
 
     globalVarTypes = ["int" for i in range(globalVarCount + 1)]
@@ -170,11 +173,13 @@ def getLocalVarTypes(func, varCount):
                     varFloat[varNum] += 1
             elif cmd.command == 0xb:
                 i += 1
+                stackSize = 1
                 while i < len(func):
                     if type(func[i]) == Command:
                         if func[i].command in [0x38, 0x39]:
                             break
-                        elif COMMAND_STACKPOPS[func[i].command](func[i].parameters) > 0:
+                        stackSize -= COMMAND_STACKPOPS[func[i].command](func[i].parameters)
+                        if stackSize <= 0:
                             if func[i].command in USES_FLOAT:
                                 if not varNum in varFloat:
                                     varFloat[varNum] = 1
@@ -186,6 +191,7 @@ def getLocalVarTypes(func, varCount):
                                 else:
                                     varInt[varNum] += 1
                             break
+                        stackSize += 1 if func[i].pushBit else 0
                     i += 1
 
     localVarTypes = ["int" for i in range(varCount)]
@@ -424,7 +430,7 @@ def decompileFunc(func, s):
 # Takes a function and decompiles it, including setting up local variables
 # returns the decompiled function
 def decompile(func, funcNum):
-    global localVars, funcTypes
+    global localVars, funcTypes, allLocalVarTypes
 
     f = c_ast.FuncDef(funcTypes[funcNum], func.name, c_ast.DeclList(), c_ast.Statements())
     try:
@@ -435,6 +441,7 @@ def decompile(func, funcNum):
         argc = beginCommand.parameters[0]
         varc = beginCommand.parameters[1]
         localVarTypes = getLocalVarTypes(func, varc)
+        allLocalVarTypes.append(localVarTypes)
         localVars = []
         localVarDecls = []
         for i in range(argc):
@@ -589,7 +596,7 @@ def printC(globalVars, funcs, file=None):
 # Attempt to determine return type of each function
 # returns a list of strings representing the return type of each function
 def getFuncTypes(mscFile):
-    global globalVarDecls
+    global globalVarDecls, allLocalVarTypes
     funcTypes = [None for _ in range(len(mscFile))]
     numPasses = 0
     while None in funcTypes and numPasses < 4:
@@ -623,12 +630,14 @@ def getFuncTypes(mscFile):
                     elif c == 0xb and func[returnIndex - 1].parameters[0] == 1:
                         var = globalVarDecls[func[returnIndex - 1].parameters[1]]
                         setTypeLevel(var.type, 1)
+                    elif c == 0xb and func[returnIndex - 1].parameters[0] == 0:
+                        setTypeLevel(allLocalVarTypes[i][func[returnIndex - 1].parameters[1]], 1)
                     elif c in range(0xe, 0x25):
                         setTypeLevel("int", 2)
                     elif c in range(0x3a, 0x42):
                         setTypeLevel("float", 2)
                     elif c in range(0x46, 0x4c) or c in range(0x25, 0x2c):
-                        setTypeLevel("bool", 2)
+                        setTypeLevel("int", 2)
             if not 1 in typeConfirmedLevel.values() and not 2 in typeConfirmedLevel.values():
                 continue
             maxType = max(typeConfirmedLevel.items(), key=operator.itemgetter(1))[0]
@@ -639,7 +648,7 @@ def getFuncTypes(mscFile):
     return funcTypes
 
 def main(args):
-    global globalVars, globalVarDecls, funcTypes, funcNames
+    global globalVars, globalVarDecls, funcTypes, funcNames, allLocalVarTypes
 
     print("Analyzing...")
     mscFile = mscsb_disasm(args.file)
@@ -651,7 +660,7 @@ def main(args):
     globalVars = [c_ast.ID(decl.name) for decl in globalVarDecls]
     funcs = []
     
-    funcTypes = getFuncTypes(mscFile)
+    funcTypes = [None for _ in range(len(mscFile))]
 
     # Rename entrypoint function to "main"
     mscFile.getScriptAtLocation(mscFile.entryPoint).name = 'main'
@@ -660,8 +669,14 @@ def main(args):
     for script in mscFile:
         funcNames.append(script.name)
 
+    allLocalVarTypes = []
     for i, script in enumerate(mscFile):
         funcs.append(decompile(script, i))
+    
+    funcTypes = getFuncTypes(mscFile)
+    for i, func in enumerate(funcs):
+        func.type = funcTypes[i]
+
     if args.split:
         stdlibFuncs = []
         while funcs[0].name != "main":
