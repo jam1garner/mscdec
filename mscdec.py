@@ -244,17 +244,17 @@ def ifToTernaryOp(ifStatement):
         if arrayRepresentation in [[0, [1, 1]], [[0, 0], 1]]:
             return c_ast.UnaryOp("!", a)
         if arrayRepresentation in [[0, [0, 1]], [[0, 1], 1]]:
-            return c_ast.UnaryOp("!", c_ast.BinaryOp("&", a, b))
+            return c_ast.UnaryOp("!", c_ast.BinaryOp("&&", a, b))
         if arrayRepresentation in [[1, [0, 1]], [[1, 0], 1]]:
-            return c_ast.BinaryOp("|", a, c_ast.UnaryOp("!", b))
+            return c_ast.BinaryOp("||", a, c_ast.UnaryOp("!", b))
         if arrayRepresentation == [0, [1, 0]]:
-            return c_ast.BinaryOp("&", c_ast.UnaryOp("!", a), b)
+            return c_ast.BinaryOp("&&", c_ast.UnaryOp("!", a), b)
         if arrayRepresentation == [1, [1, 0]]:
-            return c_ast.BinaryOp("|", a, b)
+            return c_ast.BinaryOp("||", a, b)
         if arrayRepresentation == [[0, 1], 0]:
-            return c_ast.BinaryOp("&", a, c_ast.UnaryOp("!", b))
+            return c_ast.BinaryOp("&&", a, c_ast.UnaryOp("!", b))
         if arrayRepresentation == [[1, 0], 0]:
-            return c_ast.BinaryOp("&", a, b)
+            return c_ast.BinaryOp("&&", a, b)
         
     return ternaryTemp
 
