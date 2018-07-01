@@ -204,6 +204,14 @@ def getLocalVarTypes(func, varCount):
 
     return localVarTypes
 
+def ternaryToArray(obj):
+    if type(obj) == c_ast.TernaryOp:
+        return [ternaryToArray(obj.trueStatement), ternaryToArray(obj.falseStatement)]
+    elif type(obj) == c_ast.Constant and type(obj.value) == int and obj.value in [0, 1]:
+        return obj.value
+    else:
+        return None
+
 def ifToTernaryOp(ifStatement):
     if ifStatement.falseStatements != None:
         while None in ifStatement.falseStatements:
@@ -217,7 +225,38 @@ def ifToTernaryOp(ifStatement):
         ifStatement.trueStatements[0] = ifToTernaryOp(ifStatement.trueStatements[0])
     if type(ifStatement.falseStatements[0]) == c_ast.If:
         ifStatement.falseStatements[0] = ifToTernaryOp(ifStatement.falseStatements[0])
-    return c_ast.TernaryOp(ifStatement.condition, ifStatement.trueStatements[0], ifStatement.falseStatements[0])
+
+    ternaryTemp = c_ast.TernaryOp(ifStatement.condition, ifStatement.trueStatements[0], ifStatement.falseStatements[0])
+    if type(ternaryTemp.trueStatement) == c_ast.TernaryOp or type(ternaryTemp.falseStatement) == c_ast.TernaryOp:
+        arrayRepresentation = ternaryToArray(ternaryTemp)
+        a = ternaryTemp.condition
+        b = (ternaryTemp.trueStatement.condition
+                             if type(ternaryTemp.trueStatement) == c_ast.TernaryOp
+                             else ternaryTemp.falseStatement.condition)
+        # Forgive me for I have sinned
+        # this is an attempt to convert ternary operations to boolean operations
+        if arrayRepresentation in [[0, [0,0]], [[0, 0], 0]]:
+            return c_ast.Constant(0)
+        if arrayRepresentation in [[1, [1, 1]], [[1, 1], 1]]:
+            return c_ast.Constant(1)
+        if arrayRepresentation in [[1, [0, 0]], [[1, 1], 0]]:
+            return a
+        if arrayRepresentation in [[0, [1, 1]], [[0, 0], 1]]:
+            return c_ast.UnaryOp("!", a)
+        if arrayRepresentation in [[0, [0, 1]], [[0, 1], 1]]:
+            return c_ast.UnaryOp("!", c_ast.BinaryOp("&", a, b))
+        if arrayRepresentation in [[1, [0, 1]], [[1, 0], 1]]:
+            return c_ast.BinaryOp("|", a, c_ast.UnaryOp("!", b))
+        if arrayRepresentation == [0, [1, 0]]:
+            return c_ast.BinaryOp("&", c_ast.UnaryOp("!", a), b)
+        if arrayRepresentation == [1, [1, 0]]:
+            return c_ast.BinaryOp("|", a, b)
+        if arrayRepresentation == [[0, 1], 0]:
+            return c_ast.BinaryOp("&", a, c_ast.UnaryOp("!", b))
+        if arrayRepresentation == [[1, 0], 0]:
+            return c_ast.BinaryOp("&", a, b)
+        
+    return ternaryTemp
 
 # Helper function for decompileCmd which is used for recursive calls in order
 # to grab arguments based on their pushbit so they can be used within the
