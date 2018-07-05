@@ -204,6 +204,7 @@ def getLocalVarTypes(func, varCount):
 
     return localVarTypes
 
+# Recursively check if binary tree of just lists/ints
 def ternaryToArray(obj):
     if type(obj) == c_ast.TernaryOp:
         return [ternaryToArray(obj.trueStatement), ternaryToArray(obj.falseStatement)]
@@ -211,6 +212,18 @@ def ternaryToArray(obj):
         return obj.value
     else:
         return None
+
+def validArrayRepresentation(arrayRepresentation):
+    return (type(arrayRepresentation) == list and
+            len(arrayRepresentation) == 2 and
+            (arrayRepresentation[0] in [0, 1] or validArrayRepresentation(arrayRepresentation[0])) and
+            (arrayRepresentation[1] in [0, 1] or validArrayRepresentation(arrayRepresentation[1])))
+
+def flipInside(arrayRepresentation):
+    if type(arrayRepresentation[0]) == list:
+        return [arrayRepresentation[0][::-1], arrayRepresentation[1]]
+    else:
+        return [arrayRepresentation[0], arrayRepresentation[1][::-1]]
 
 def ifToTernaryOp(ifStatement):
     if ifStatement.falseStatements != None:
@@ -229,32 +242,40 @@ def ifToTernaryOp(ifStatement):
     ternaryTemp = c_ast.TernaryOp(ifStatement.condition, ifStatement.trueStatements[0], ifStatement.falseStatements[0])
     if type(ternaryTemp.trueStatement) == c_ast.TernaryOp or type(ternaryTemp.falseStatement) == c_ast.TernaryOp:
         arrayRepresentation = ternaryToArray(ternaryTemp)
-        a = ternaryTemp.condition
-        b = (ternaryTemp.trueStatement.condition
-                             if type(ternaryTemp.trueStatement) == c_ast.TernaryOp
-                             else ternaryTemp.falseStatement.condition)
-        # Forgive me for I have sinned
-        # this is an attempt to convert ternary operations to boolean operations
-        if arrayRepresentation in [[0, [0,0]], [[0, 0], 0]]:
-            return c_ast.Constant(0)
-        if arrayRepresentation in [[1, [1, 1]], [[1, 1], 1]]:
-            return c_ast.Constant(1)
-        if arrayRepresentation in [[1, [0, 0]], [[1, 1], 0]]:
-            return a
-        if arrayRepresentation in [[0, [1, 1]], [[0, 0], 1]]:
-            return c_ast.UnaryOp("!", a)
-        if arrayRepresentation in [[0, [0, 1]], [[0, 1], 1]]:
-            return c_ast.UnaryOp("!", c_ast.BinaryOp("&&", a, b))
-        if arrayRepresentation in [[1, [0, 1]], [[1, 0], 1]]:
-            return c_ast.BinaryOp("||", a, c_ast.UnaryOp("!", b))
-        if arrayRepresentation == [0, [1, 0]]:
-            return c_ast.BinaryOp("&&", c_ast.UnaryOp("!", a), b)
-        if arrayRepresentation == [1, [1, 0]]:
-            return c_ast.BinaryOp("||", a, b)
-        if arrayRepresentation == [[0, 1], 0]:
-            return c_ast.BinaryOp("&&", a, c_ast.UnaryOp("!", b))
-        if arrayRepresentation == [[1, 0], 0]:
-            return c_ast.BinaryOp("&&", a, b)
+        if validArrayRepresentation(arrayRepresentation):
+            # both items are either an int or a
+            a = ternaryTemp.condition
+            while type(a) == c_ast.UnaryOp and a.op == "!":
+                arrayRepresentation = arrayRepresentation[::-1]
+                a = a.id
+            b = (ternaryTemp.trueStatement.condition
+                                if type(ternaryTemp.trueStatement) == c_ast.TernaryOp
+                                else ternaryTemp.falseStatement.condition)
+            while type(b) == c_ast.UnaryOp and b.op == "!":
+                arrayRepresentation = flipInside(arrayRepresentation)
+                b = b.id
+            # Forgive me for I have sinned
+            # this is an attempt to convert ternary operations to boolean operations
+            if arrayRepresentation in [[0, [0,0]], [[0, 0], 0]]:
+                return c_ast.Constant(0)
+            if arrayRepresentation in [[1, [1, 1]], [[1, 1], 1]]:
+                return c_ast.Constant(1)
+            if arrayRepresentation in [[1, [0, 0]], [[1, 1], 0]]:
+                return a
+            if arrayRepresentation in [[0, [1, 1]], [[0, 0], 1]]:
+                return c_ast.UnaryOp("!", a)
+            if arrayRepresentation in [[0, [0, 1]], [[0, 1], 1]]:
+                return c_ast.UnaryOp("!", c_ast.BinaryOp("&&", a, b))
+            if arrayRepresentation in [[1, [0, 1]], [[1, 0], 1]]:
+                return c_ast.BinaryOp("||", a, c_ast.UnaryOp("!", b))
+            if arrayRepresentation == [0, [1, 0]]:
+                return c_ast.BinaryOp("&&", c_ast.UnaryOp("!", a), b)
+            if arrayRepresentation == [1, [1, 0]]:
+                return c_ast.BinaryOp("||", a, b)
+            if arrayRepresentation == [[0, 1], 0]:
+                return c_ast.BinaryOp("&&", a, c_ast.UnaryOp("!", b))
+            if arrayRepresentation == [[1, 0], 0]:
+                return c_ast.BinaryOp("&&", a, b)
         
     return ternaryTemp
 
@@ -382,6 +403,8 @@ def decompileCmd(cmd):
         return other + [c_ast.Cast(cmd.type, args[0])]
     elif type(cmd) == IfElseIntermediate:
         beforeIf, args = getArgs(1)
+        if len(args) == 0:
+            return beforeIf
         ifCondition = args[0]
         oldFunc = currentFunc
         oldIndex = index
@@ -472,32 +495,32 @@ def decompile(func, funcNum):
     global localVars, funcTypes, allLocalVarTypes
 
     f = c_ast.FuncDef(funcTypes[funcNum], func.name, c_ast.DeclList(), c_ast.Statements())
-    try:
-        # If non-empty function that doesn't start with 0x2
-        if len(func.cmds) != 0 and func.cmds[0].command != 0x2:
-            raise DecompilerError("Script {} doesn't start with a begin".format(func.name))
-        beginCommand = func.cmds[0]
-        argc = beginCommand.parameters[0]
-        varc = beginCommand.parameters[1]
-        localVarTypes = getLocalVarTypes(func, varc)
-        allLocalVarTypes.append(localVarTypes)
-        localVars = []
-        localVarDecls = []
-        for i in range(argc):
-            f.args.append(c_ast.Decl(localVarTypes[i], "arg{}".format(i)))
-            localVars.append(c_ast.ID("arg{}".format(i)))
-        for i in range(varc - argc):
-            localVarDecls.append(c_ast.Decl(localVarTypes[i + argc], "var{}".format(i + argc)))
-            localVars.append(c_ast.ID("var{}".format(i + argc)))
+    #try:
+    # If non-empty function that doesn't start with 0x2
+    if len(func.cmds) != 0 and func.cmds[0].command != 0x2:
+        raise DecompilerError("Script {} doesn't start with a begin".format(func.name))
+    beginCommand = func.cmds[0]
+    argc = beginCommand.parameters[0]
+    varc = beginCommand.parameters[1]
+    localVarTypes = getLocalVarTypes(func, varc)
+    allLocalVarTypes.append(localVarTypes)
+    localVars = []
+    localVarDecls = []
+    for i in range(argc):
+        f.args.append(c_ast.Decl(localVarTypes[i], "arg{}".format(i)))
+        localVars.append(c_ast.ID("arg{}".format(i)))
+    for i in range(varc - argc):
+        localVarDecls.append(c_ast.Decl(localVarTypes[i + argc], "var{}".format(i + argc)))
+        localVars.append(c_ast.ID("var{}".format(i + argc)))
 
-        s = f.statements
-        decompileFunc(func, s)
+    s = f.statements
+    decompileFunc(func, s)
 
-        # Insert local var declarations at the beginning of the function, in order
-        for i, decl in enumerate(localVarDecls):
-            s.insert(i, decl)
-    except Exception as e: 
-        f.statements = c_ast.Statements([c_ast.Comment("Error occurred while decompiling:\n{}".format(str(e)))])
+    # Insert local var declarations at the beginning of the function, in order
+    for i, decl in enumerate(localVarDecls):
+        s.insert(i, decl)
+    #except Exception as e: 
+    #    f.statements = c_ast.Statements([c_ast.Comment("Error occurred while decompiling:\n{}".format(str(e)))])
     return f
 
 # Gets last object of type Command from list l
