@@ -249,8 +249,8 @@ def ifToTernaryOp(ifStatement):
                 arrayRepresentation = arrayRepresentation[::-1]
                 a = a.id
             b = (ternaryTemp.trueStatement.condition
-                                if type(ternaryTemp.trueStatement) == c_ast.TernaryOp
-                                else ternaryTemp.falseStatement.condition)
+                if type(ternaryTemp.trueStatement) == c_ast.TernaryOp
+                else ternaryTemp.falseStatement.condition)
             while type(b) == c_ast.UnaryOp and b.op == "!":
                 arrayRepresentation = flipInside(arrayRepresentation)
                 b = b.id
@@ -264,10 +264,14 @@ def ifToTernaryOp(ifStatement):
                 return a
             if arrayRepresentation in [[0, [1, 1]], [[0, 0], 1]]:
                 return c_ast.UnaryOp("!", a)
-            if arrayRepresentation in [[0, [0, 1]], [[0, 1], 1]]:
+            if arrayRepresentation == [0, [0, 1]]:
+                return c_ast.UnaryOp("!", c_ast.BinaryOp("||", a, b))
+            if arrayRepresentation == [[0, 1], 1]:
                 return c_ast.UnaryOp("!", c_ast.BinaryOp("&&", a, b))
-            if arrayRepresentation in [[1, [0, 1]], [[1, 0], 1]]:
+            if arrayRepresentation == [1, [0, 1]]:
                 return c_ast.BinaryOp("||", a, c_ast.UnaryOp("!", b))
+            if arrayRepresentation == [[1, 0], 1]:
+                return c_ast.BinaryOp("||", c_ast.UnaryOp("!", a), b)
             if arrayRepresentation == [0, [1, 0]]:
                 return c_ast.BinaryOp("&&", c_ast.UnaryOp("!", a), b)
             if arrayRepresentation == [1, [1, 0]]:
