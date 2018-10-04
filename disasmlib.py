@@ -183,7 +183,9 @@ def pickTypes(script):
         if cmd.command in [0xa, 0xd]:
             if type(cmd.parameters[0]) == int:
                 if guessIsFloat(cmd.parameters[0]):
-                    cmd.parameters[0] = unpack("f", pack("I", cmd.parameters[0]))[0]
+                    asFloat = unpack("f", pack("I", cmd.parameters[0]))[0]
+                    if not (asFloat > 0 and asFloat < 0.000001):
+                        cmd.parameters[0] = asFloat
 
 def disasm(fname):
     global clearedPaths,scriptCalledVars,mscFile,charAcmdNames
