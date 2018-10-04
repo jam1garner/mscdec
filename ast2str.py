@@ -18,8 +18,18 @@ class BinaryOp:
 
     def __str__(self):
         formatString = ""
-        formatString += "({}) {} " if type(self.arg1) in _parenthesisTypes else "{} {} "
-        formatString += "({})" if type(self.arg2) in _parenthesisTypes else "{}"
+        if (not type(self.arg1) in _parenthesisTypes) or (type(self.arg1) == BinaryOp and self.arg1.op == self.op):
+            formatString += "{}"
+        else:
+            formatString += "({})"
+
+        formatString += " {} "
+
+        if (not type(self.arg2) in _parenthesisTypes) or (type(self.arg2) == BinaryOp and self.arg2.op == self.op):
+            formatString += "{}"
+        else:
+            formatString += "({})"
+
         return formatString.format(str(self.arg1), self.op, str(self.arg2))
 
 class Break:
