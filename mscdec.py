@@ -31,6 +31,7 @@ class WhileIntermediate:
         self.isIfNot = isIfNot
         self.commands = commands
 
+FLOAT_RETURN_SYSCALLS = [0x0a, 0x0f, 0x11, 0x13, 0x15, 0x17, 0x1b, 0x25, 0x28, 0x2b, 0x2c, 0x2f, 0x3d]
 FLOAT_VAR_COMMANDS = [0x3f, 0x40, 0x41, 0x42, 0x43, 0x44, 0x45]
 INT_VAR_COMMANDS = [0x14, 0x15, 0x1c, 0x1d, 0x1e, 0x1f, 0x20, 0x21, 0x22, 0x23, 0x24]
 VAR_COMMANDS = INT_VAR_COMMANDS + FLOAT_VAR_COMMANDS + [0xb]
@@ -662,7 +663,7 @@ def printC(globalVars, funcs, file=None):
 # Attempt to determine return type of each function
 # returns a list of strings representing the return type of each function
 def getFuncTypes(mscFile):
-    global globalVarDecls, allLocalVarTypes
+    global globalVarDecls, allLocalVarTypes, funcNames
     funcTypes = [None for _ in range(len(mscFile))]
     numPasses = 0
     while None in funcTypes and numPasses < 4:
@@ -700,10 +701,15 @@ def getFuncTypes(mscFile):
                         setTypeLevel(allLocalVarTypes[i][func[returnIndex - 1].parameters[1]], 1)
                     elif c in range(0xe, 0x25):
                         setTypeLevel("int", 2)
-                    elif c in range(0x3a, 0x42):
+                    elif c == 0x2d and func[returnIndex - 1].parameters[1] in FLOAT_RETURN_SYSCALLS:
                         setTypeLevel("float", 2)
+                    elif c in range(0x3a, 0x42):
+                        setTypeLevel("float", 2)    
                     elif c in range(0x46, 0x4c) or c in range(0x25, 0x2c):
                         setTypeLevel("int", 2)
+                elif type(func[returnIndex - 1]) == Label and type(func[returnIndex - 2]) == FunctionCallGroup:
+                    if func[returnIndex - 2][-3].command in [0xA, 0xD] and func[returnIndex - 2][-3].parameters[0] in funcNames:
+                        typeConfirmedLevel[func[returnIndex - 2][-3].parameters[0]] = 1
             if not 1 in typeConfirmedLevel.values() and not 2 in typeConfirmedLevel.values():
                 continue
             maxType = max(typeConfirmedLevel.items(), key=operator.itemgetter(1))[0]
@@ -711,6 +717,14 @@ def getFuncTypes(mscFile):
     for i in range(len(funcTypes)):
         if funcTypes[i] == None:
             funcTypes[i] = "int"
+        elif funcTypes[i] in funcNames:
+            MAX_RECURSION = 10000
+            recursiveLevel = 0
+            while funcTypes[i] in funcNames:
+                recursiveLevel += 1
+                if recursiveLevel > MAX_RECURSION:
+                    break # Prevent an infinite loop by timing out after MAX_RECURSION tries
+                funcTypes[i] = funcTypes[funcNames.index(funcTypes[i])]
     return funcTypes
 
 def main(args):
