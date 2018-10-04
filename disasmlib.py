@@ -163,6 +163,8 @@ def guessIsFloat(bits):
         return False
     elif sign:
         return True
+    elif abs(testFloat) >= 10000000:
+        return False
 
     # +- 0.0
     if exp == -127 and mant == 0:
