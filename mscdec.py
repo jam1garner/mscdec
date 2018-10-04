@@ -451,8 +451,9 @@ def decompileCmd(cmd):
         oldIndex = index
         loopStatements = c_ast.Statements()
         currentFunc = cmd.commands
-        index = len(currentFunc) - 1
+        index = len(currentFunc)
         other, condition = getArgs(1)
+        index -= 1
         condition = condition[0]
         for i in other[::-1]:
             loopStatements.insert(0, i)
