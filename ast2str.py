@@ -18,8 +18,32 @@ class BinaryOp:
 
     def __str__(self):
         formatString = ""
-        formatString += "({}) {} " if type(self.arg1) in _parenthesisTypes else "{} {} "
-        formatString += "({})" if type(self.arg2) in _parenthesisTypes else "{}"
+        if type(self.arg1) in _parenthesisTypes:
+            if type(self.arg1) == BinaryOp:
+                if _binaryOpPrecedence[self.arg1.op] <= _binaryOpPrecedence[self.op]:
+                    formatString += "{}"
+                else:
+                    formatString += "({})"
+            else:
+                formatString += "({})"
+        else:
+            formatString += "{}"
+        formatString += " {} " #op
+        if type(self.arg2) in _parenthesisTypes:
+            if type(self.arg2) == BinaryOp:
+                MainPrecedence = _binaryOpPrecedence[self.op]
+                Arg2Precedence = _binaryOpPrecedence[self.arg2.op]
+                if Arg2Precedence < MainPrecedence:
+                    formatString += "{}"
+                elif Arg2Precedence == MainPrecedence and self.op in _associativeBinaryOps:
+                    formatString += "{}"
+                else:
+                    formatString += "({})"
+            else:
+                formatString += "({})"
+        else:
+            formatString += "{}"
+
         return formatString.format(str(self.arg1), self.op, str(self.arg2))
 
 class Break:
@@ -214,6 +238,28 @@ class While:
 
 _parenthesisTypes = [BinaryOp, TernaryOp]
 _noSemicolon = [While, For, If, Comment]
+#reference values: https://en.cppreference.com/w/c/language/operator_precedence
+_binaryOpPrecedence = {
+    "*"  : 3,
+    "/"  : 3,
+    "%"  : 3,
+    "+"  : 4,
+    "-"  : 4,
+    "<<" : 5,
+    ">>" : 5,
+    "<"  : 6,
+    "<=" : 6,
+    ">"  : 6,
+    ">=" : 6,
+    "==" : 7,
+    "!=" : 7,
+    "&"  : 8,
+    "^"  : 9,
+    "|"  : 10,
+    "&&" : 11,
+    "||" : 12
+}
+_associativeBinaryOps = ["*", "+", "==", "!=", "&", "^", "|", "&&", "||"]
 
 # Example:
 # void main(){
