@@ -238,7 +238,7 @@ class While:
     def __str__(self):
         return "while ({})\n{{\n{}\n}}".format(str(self.condition), tabulate(str(self.statements)))
 
-_parenthesisTypes = [BinaryOp, TernaryOp]
+_parenthesisTypes = [BinaryOp, TernaryOp, Assignment]
 _noSemicolon = [While, For, If, Comment]
 #reference values: https://en.cppreference.com/w/c/language/operator_precedence
 _binaryOpPrecedence = {
