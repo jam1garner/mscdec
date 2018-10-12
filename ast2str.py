@@ -87,6 +87,8 @@ class Constant:
         if type(self.value) == str:
             return '"{}"'.format(self.value)
         elif type(self.value) == int:
+            if self.value == 0:
+                return "0"
             return hex(self.value)
         elif type(self.value) == bool:
             return str(self.value).lower()
