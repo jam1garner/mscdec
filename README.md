@@ -2,6 +2,8 @@
 
 MSC bytecode to C Decompiler
 
+**Note:** Not all assembly has an accurate representation in C. Attempting to decompile hand-written assembly (such as code modified with pymsc poorly) may not decompile.
+
 ### Usage
 
 ```
