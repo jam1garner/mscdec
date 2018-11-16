@@ -281,7 +281,6 @@ def ifToTernaryOp(ifStatement):
                 return c_ast.BinaryOp("&&", a, c_ast.UnaryOp("!", b))
             if arrayRepresentation == [[1, 0], 0]:
                 return c_ast.BinaryOp("&&", a, b)
-        
     return ternaryTemp
 
 # Helper function for decompileCmd which is used for recursive calls in order
@@ -316,7 +315,6 @@ def decompileCmd(cmd):
 
     funcHolder = currentFunc
 
-    # TODO: Properly recognize labels as control flow
     if type(cmd) == Label:
         return None
     if type(cmd) == Command:
@@ -326,7 +324,7 @@ def decompileCmd(cmd):
         elif c in [0x4, 0x5]: # Jumps
             pass
         elif c in [0x6, 0x8]: # Return item
-            other, args = getArgs(1) 
+            other, args = getArgs(1)
             return other + [c_ast.Return(args[0])]
         elif c in [0x7, 0x9]: # Return nothing
             return c_ast.Return()
@@ -381,7 +379,6 @@ def decompileCmd(cmd):
         index = len(currentFunc) - 2 # (ignore the label that will be at the end)
         if currentFunc[index].command != 0x2f:
             raise DecompilerError("Function improperly formatted")
-        
         cmd = currentFunc[index]
         other, args = getArgs(cmd.parameters[0] + 1)
 
@@ -440,7 +437,6 @@ def decompileCmd(cmd):
                 index -= 1
         else:
             falseStatements = None
-        
         currentFunc = oldFunc
         index = oldIndex
         if cmd.isNot:
@@ -678,7 +674,6 @@ def getFuncTypes(mscFile):
                 if type(cmd) == Command and cmd.command in [0x6, 0x8]:
                     returnIndices.append(j)
                     hasReturnValue = True
-                    
             if not hasReturnValue:
                 funcTypes[i] = "void"
                 continue
@@ -705,7 +700,7 @@ def getFuncTypes(mscFile):
                     elif c == 0x2d and func[returnIndex - 1].parameters[1] in FLOAT_RETURN_SYSCALLS:
                         setTypeLevel("float", 2)
                     elif c in range(0x3a, 0x42):
-                        setTypeLevel("float", 2)    
+                        setTypeLevel("float", 2)
                     elif c in range(0x46, 0x4c) or c in range(0x25, 0x2c):
                         setTypeLevel("int", 2)
                 elif type(func[returnIndex - 1]) == Label and type(func[returnIndex - 2]) == FunctionCallGroup:
@@ -733,19 +728,16 @@ def main(args):
 
     print("Analyzing...")
     mscFile = mscsb_disasm(args.file)
-    
     print("Decompiling...")
 
     globalVarDecls = getGlobalVars(mscFile)
 
     globalVars = [c_ast.ID(decl.name) for decl in globalVarDecls]
     funcs = []
-    
     funcTypes = [None for _ in range(len(mscFile))]
 
     # Rename entrypoint function to "main"
     mscFile.getScriptAtLocation(mscFile.entryPoint).name = 'main'
-    
     funcNames = []
     for script in mscFile:
         funcNames.append(script.name)
@@ -753,7 +745,6 @@ def main(args):
     allLocalVarTypes = []
     for i, script in enumerate(mscFile):
         funcs.append(decompile(script, i))
-    
     funcTypes = getFuncTypes(mscFile)
     for i, func in enumerate(funcs):
         func.type = funcTypes[i]
