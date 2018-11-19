@@ -1,4 +1,5 @@
 from msc import *
+from xml_info import MscXmlInfo, VariableLabel
 from argparse import ArgumentParser
 import ast2str as c_ast
 from disasmlib import disasm as mscsb_disasm
@@ -311,7 +312,7 @@ def getArgs(argc):
 # Recursively decompile from commands to an AST, uses global variable "index" to keep track of position,
 # iterating backwards through the function in order to assign arguments to the things that use them.
 def decompileCmd(cmd):
-    global currentFunc, index, localVars, globalVars, funcNames
+    global currentFunc, index, localVars, globalVars, funcNames, xmlInfo
 
     funcHolder = currentFunc
 
@@ -360,7 +361,13 @@ def decompileCmd(cmd):
             return other + [c_ast.FuncCall("printf", c_ast.DeclList(args[::-1]))]
         elif c == 0x2d: # syscall
             other, args = getArgs(cmd.parameters[0])
-            return other + [c_ast.FuncCall("sys_%X" % cmd.parameters[1], c_ast.DeclList(args[::-1]))] 
+            syscallInfo = xmlInfo.getSyscall(cmd.parameters[1])
+            if syscallInfo != None:
+                methodInfo = syscallInfo.getMethod(args[-1])
+                if methodInfo != None:
+                    return other + [c_ast.FuncCall(c_ast.StructRef(syscallInfo.name, methodInfo.name), args[-2::-1])]
+                return other + [c_ast.FuncCall(syscallInfo.name, args[::-1])]
+            return other + [c_ast.FuncCall("sys_%X" % cmd.parameters[1], c_ast.DeclList(args[::-1]))]
         elif c == 0x30: # set_main
             other, args = getArgs(cmd.parameters[0] + 1)
             if type(args[0]) == c_ast.Constant and type(args[0].value) == str:
@@ -495,7 +502,6 @@ def decompileFunc(func, s):
 # returns the decompiled function
 def decompile(func, funcNum):
     global localVars, funcTypes, allLocalVarTypes
-
     f = c_ast.FuncDef(funcTypes[funcNum], func.name, c_ast.DeclList(), c_ast.Statements())
     #try:
     # If non-empty function that doesn't start with 0x2
@@ -724,7 +730,9 @@ def getFuncTypes(mscFile):
     return funcTypes
 
 def main(args):
-    global globalVars, globalVarDecls, funcTypes, funcNames, allLocalVarTypes
+    global globalVars, globalVarDecls, funcTypes, funcNames, allLocalVarTypes, xmlInfo
+
+    xmlInfo = MscXmlInfo("labels.xml")
 
     print("Analyzing...")
     mscFile = mscsb_disasm(args.file)
