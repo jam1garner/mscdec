@@ -6,7 +6,7 @@ class Assignment:
         self.op = op
         self.lvalue = lvalue
         self.rvalue = rvalue
-    
+
     def __str__(self):
         return '{} {} {}'.format(str(self.lvalue), self.op, str(self.rvalue))
 
@@ -49,18 +49,9 @@ class BinaryOp:
 class Break:
     def __init__(self):
         self.pushBit = False
-        
+
     def __str__(self):
         return "break"
-
-class Statements(list):
-    def __str__(self):
-        temp = ""
-        if len(self) != 0:
-            temp = str(self[0]) + ("" if type(self[0]) in _noSemicolon else ";") 
-            for i in self[1:]:
-                temp += "\n" + str(i) + ("" if type(i) in _noSemicolon else ";")
-        return temp
 
 class Cast:
     def __init__(self, type, statement):
@@ -202,6 +193,23 @@ class Return:
         if self.statement == None:
             return "return"
         return "return {}".format(str(self.statement))
+
+class Statements(list):
+    def __str__(self):
+        temp = ""
+        if len(self) != 0:
+            temp = str(self[0]) + ("" if type(self[0]) in _noSemicolon else ";") 
+            for i in self[1:]:
+                temp += "\n" + str(i) + ("" if type(i) in _noSemicolon else ";")
+        return temp
+
+class StructRef:
+    def __init__(self, name, field):
+        self.name = name
+        self.field = field
+
+    def __str__(self):
+        return "{}.{}".format(str(self.name), str(self.field))
 
 class TernaryOp:
     def __init__(self, condition, trueStatement, falseStatement):
