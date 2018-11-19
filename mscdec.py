@@ -292,7 +292,7 @@ def getArgs(argc):
     other = []
     args = []
     while len(args) < argc and index >= 0:
-        index -= 1 
+        index -= 1
         thisIndex = index
         d = decompileCmd(currentFunc[index])
         if type(d) == list:
