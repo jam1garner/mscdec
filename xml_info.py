@@ -7,7 +7,7 @@ class VariableLabel:
         self.name = name
         self.methods = []
 
-    def getMethod(searchFor):
+    def getMethod(self, searchFor):
         if type(searchFor) == str:
             for method in self.methods:
                 if method.name == searchFor:
@@ -22,29 +22,30 @@ class MscXmlInfo:
         self.globals = []
         self.functions = []
         self.syscalls = []
-        if file != None:
-              self.read(file)
+        if filename != None:
+            self.read(filename)
 
-    def read(filename):
+    def read(self, filename):
         labels = ET.parse(filename).getroot()
         for function in labels.find("functions").findall("function"):
             self.functions.append(VariableLabel(
-                    int(function.find("id").text),
+                    int(function.find("id").text, 0),
                     function.find("name").text
                 ))
         for globalNode in labels.find("globals").findall("global"):
             self.globals.append(VariableLabel(
-                    int(globalNode.find("id").text),
+                    int(globalNode.find("id").text, 0),
                     globalNode.find("name").text
                 ))
         for syscall in labels.find("syscalls").findall("syscall"):
             syscallLabel = VariableLabel(
-                        int(syscall.find("id").text),
+                        int(syscall.find("id").text, 0),
                         syscall.find("name").text
                     )
-            for method in syscall.find("methods").findall("method"):
-                syscallLabel.methods.append(VariableLabel(
-                        int(method.find("id").text),
+            if syscall.find("methods") != None:
+                for method in syscall.find("methods").findall("method"):
+                    syscallLabel.methods.append(VariableLabel(
+                        int(method.find("id").text, 0),
                         method.find("name").text
                     ))
             self.syscalls.append(syscallLabel)
