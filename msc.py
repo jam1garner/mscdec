@@ -87,7 +87,7 @@ COMMAND_IDS = {
     "floatNotEqual"       : 0x47,
     "floatLess"           : 0x48,
     "floatLessOrEqual"    : 0x49,
-    "floatGreater"        : 0x4a,    
+    "floatGreater"        : 0x4a,
     "floatGreaterOrEqual" : 0x4b,
     "error_4c"       : 0x4c,
     "exit"           : 0x4d,
@@ -99,7 +99,7 @@ COMMAND_NAMES = {}
 for k, v in COMMAND_IDS.items():
     if not v in COMMAND_NAMES:
         COMMAND_NAMES[v] = k
-        
+
 COMMAND_FORMAT = {
     0x0 : '',
     0x2 : 'HH',
@@ -287,7 +287,7 @@ def disassembleCommands(rawCommands, startOffset):
     return commands
 
 #Thanks Triptych https://stackoverflow.com/questions/1265665/python-check-if-a-string-represents-an-int-without-using-try-except
-def _RepresentsInt(s):
+def RepresentsInt(s):
     try:
         int(s, 0)
         return True
