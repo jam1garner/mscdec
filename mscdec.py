@@ -363,9 +363,10 @@ def decompileCmd(cmd):
             other, args = getArgs(cmd.parameters[0])
             syscallInfo = xmlInfo.getSyscall(cmd.parameters[1])
             if syscallInfo != None:
-                methodInfo = syscallInfo.getMethod(args[-1])
-                if methodInfo != None:
-                    return other + [c_ast.FuncCall(c_ast.StructRef(syscallInfo.name, methodInfo.name), c_ast.DeclList(args[-2::-1]))]
+                if RepresentsInt(str(args[-1])):
+                    methodInfo = syscallInfo.getMethod(int(str(args[-1]), 0))
+                    if methodInfo != None:
+                        return other + [c_ast.FuncCall(c_ast.StructRef(syscallInfo.name, methodInfo.name), c_ast.DeclList(args[-2::-1]))]
                 return other + [c_ast.FuncCall(syscallInfo.name, c_ast.DeclList(args[::-1]))]
             return other + [c_ast.FuncCall("sys_%X" % cmd.parameters[1], c_ast.DeclList(args[::-1]))]
         elif c == 0x30: # set_main
