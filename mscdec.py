@@ -1,5 +1,5 @@
 from msc import *
-from xml_info import MscXmlInfo, VariableLabel
+from xml_info import MscXmlInfo, VariableLabel, getXmlInfoPath
 from argparse import ArgumentParser
 import ast2str as c_ast
 from disasmlib import disasm as mscsb_disasm
