@@ -732,7 +732,12 @@ def getFuncTypes(mscFile):
 def main(args):
     global globalVars, globalVarDecls, funcTypes, funcNames, allLocalVarTypes, xmlInfo
 
-    xmlInfo = MscXmlInfo("labels.xml")
+    # Use path passed by argument if it exists,
+    # else use the path found from getXmlInfoPath()
+    # if no XmlInfo file is found, xmlPath will be None
+    # MscXmlInfo(None) (aka filename=None) will be an empty MscXmlInfo object
+    xmlPath = args.xmlPath if args.xmlPath != None else getXmlInfoPath()
+    xmlInfo = MscXmlInfo(xmlPath)
 
     print("Analyzing...")
     mscFile = mscsb_disasm(args.file)
@@ -775,6 +780,7 @@ if __name__ == "__main__":
     parser.add_argument('file', type=str, help='file to decompile')
     parser.add_argument('-o', dest='filename', help='Filename to output to')
     parser.add_argument('-s', '--split', action='store_true', help='Split to put all functions before main() into stdlib.c')
+    parser.add_argument('-x', '--xmlPath', dest='xmlPath', help="Path to load overload MSC xml info")
     start = timeit.default_timer()
     main(parser.parse_args())
     end = timeit.default_timer()
