@@ -745,6 +745,9 @@ def main(args):
     print("Decompiling...")
 
     globalVarDecls = getGlobalVars(mscFile)
+    if args.assumeCharStd:
+        for g in xmlInfo.globals:
+            globalVarDecls[g.id].name = g.name
 
     globalVars = [c_ast.ID(decl.name) for decl in globalVarDecls]
     funcs = []
@@ -755,6 +758,9 @@ def main(args):
     funcNames = []
     for script in mscFile:
         funcNames.append(script.name)
+    if args.assumeCharStd:
+        for f in xmlInfo.functions:
+            funcNames[f.id] = f.name
 
     allLocalVarTypes = []
     for i, script in enumerate(mscFile):
@@ -782,6 +788,7 @@ if __name__ == "__main__":
     parser.add_argument('-o', dest='filename', help='Filename to output to')
     parser.add_argument('-s', '--split', action='store_true', help='Split to put all functions before main() into stdlib.c')
     parser.add_argument('-x', '--xmlPath', dest='xmlPath', help="Path to load overload MSC xml info")
+    parser.add_argument('-c', '--assumeCharStd', dest='assumeCharStd', action='store_true', help="Assume the MSC binary is a character")
     start = timeit.default_timer()
     main(parser.parse_args())
     end = timeit.default_timer()
