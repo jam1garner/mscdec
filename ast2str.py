@@ -83,6 +83,8 @@ class Constant:
             return hex(self.value)
         elif type(self.value) == bool:
             return str(self.value).lower()
+        elif type(self.value) == float:
+            return str(self.value) + "f"
         else:
             return str(self.value)
 
