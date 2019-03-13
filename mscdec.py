@@ -5,6 +5,7 @@ import ast2str as c_ast
 from disasmlib import disasm as mscsb_disasm
 from disasmlib import Label, ScriptRef
 import operator, os, timeit
+import math
 
 class DecompilerError(Exception):
     def __init__(self,*args,**kwargs):
@@ -309,6 +310,22 @@ def getArgs(argc):
     other = list(filter(lambda a: a != None, other))
     return other, args
 
+math_constants = {
+    math.e: "M_E",
+    math.log2(math.e): "M_LOG2E",
+    math.log10(math.e): "M_LOG10E",
+    math.log(2): "M_LN2",
+    math.log(10): "M_LN10",
+    math.pi: "M_PI",
+    math.pi / 2: "M_PI_2",
+    math.pi / 4: "M_PI_4",
+    1 / math.pi: "M_1_PI",
+    2 / math.pi: "M_2_PI",
+    2 / math.sqrt(math.pi): "M_2_SQRTPI",
+    math.sqrt(2): "M_SQRT2",
+    1 / math.sqrt(2): "M_SQRT1_2",
+}
+
 # Recursively decompile from commands to an AST, uses global variable "index" to keep track of position,
 # iterating backwards through the function in order to assign arguments to the things that use them.
 def decompileCmd(cmd):
@@ -332,6 +349,11 @@ def decompileCmd(cmd):
         elif c in [0xA, 0xD]: # Push constant
             if type(cmd.parameters[0]) == ScriptRef:
                 return c_ast.ID(str(cmd.parameters[0]))
+            if type(cmd.parameters[0]) == float:
+                # Check if float is equal to a math constant
+                for m_const in math_constants:
+                    if math.isclose(cmd.parameters[0], m_const, abs_tol=0.0001):
+                        return c_ast.ID(math_constants[m_const])
             return c_ast.Constant(cmd.parameters[0])
         elif c == 0xB: # Push variable
             if cmd.parameters[0] == 0:
