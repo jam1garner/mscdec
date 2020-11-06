@@ -59,6 +59,8 @@ def updateScriptReference(popped, index, scriptName):
 #depth - used to determine whether or not a path can be abandoned
 def emuScript(script, startIndex, stack, passCount, endPosition=None, depth=0):
     global clearedPaths,scriptCalledVars, mscFile
+    if depth > 500:
+        return False
     scriptName = scriptNames[script.bounds[0]]
     if endPosition == None:
         clearedPaths = []
@@ -97,8 +99,8 @@ def emuScript(script, startIndex, stack, passCount, endPosition=None, depth=0):
                     elif script[i].parameters[1] == 0x29:
                         updateScriptReference(popped, 2, scriptName)
                 #If gv16 flag is enabled and it is setting GlobalVar16
-                if script[i].command == 0x1C and script[i].parameters[0] == 0x1 and gvIsOffset[script[i].parameters[1]]:
-                    updateScriptReference(popped, 0, scriptName)
+                #if script[i].command == 0x1C and script[i].parameters[0] == 0x1 and gvIsOffset[script[i].parameters[1]]:
+                #    updateScriptReference(popped, 0, scriptName)
             elif passCount >= 1:
                 if script[i].command in [0x1C, 0x41] and scriptName in scriptCalledVars:
                     if script[i].parameters[0] == 0 and script[i].parameters[1] in scriptCalledVars[scriptName]:

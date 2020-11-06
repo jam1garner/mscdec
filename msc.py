@@ -486,6 +486,7 @@ class MscScript:
         return s
 
 def readInt(f, endian):
+    endian = ">"
     try:
         return struct.unpack(endian+'L', f.read(4))[0]
     except struct.error as e:
